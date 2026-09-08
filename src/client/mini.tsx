@@ -1,0 +1,249 @@
+/**
+ * Mini slot renderer（DESIGN-v2 §2）：在宿主自绘 UI 中原样复用官方设置组件。
+ *
+ * 宿主（fold 壳 / collect 卡页）渲染 settings.section 的第三方 entry 时，该 seat 不在
+ * 宿主 entry 的 children 声明内（且已被官方 SettingsRoot 声明），无法走官方
+ * renderSlot/outlet —— 自研同构 props 组装：kit（useSessions/useWorkspaces/t/
+ * renderSlot）+ entry inject 面（hooks 包装 use<Name>）+ ownerProps（官方组合序）。
+ */
+import { Component, createElement, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import type { SectionEntry } from './pure.ts'
+
+/* runtime slots 数据面（runtime = ctx.slots 公开方法；类型本地收窄） */
+export interface ObservableSource<T> {
+  getSnapshot(): T
+  subscribe(fn: () => void): () => void
+}
+export interface MiniSlots {
+  entriesOfSlot(key: string): readonly SectionEntry[]
+  subscribe(key: string, fn: () => void): () => void
+  getVersion(key: string): number
+  hostFace(): {
+    sessions?: ObservableSource<unknown>
+    workspaces?: ObservableSource<unknown>
+    locale?: {
+      bind(ns: string): (key: string) => string
+      getSnapshot(): { revision: number }
+      subscribe(fn: () => void): () => void
+    }
+    /** store 实例解析（entry 声明 store 时注入 useStore/actions） */
+    storeOf?(entry: unknown, scopeKey: string): {
+      getSnapshot(): unknown
+      subscribe(fn: () => void): () => void
+      actions?: unknown
+    } | undefined
+  }
+}
+interface ChildSpec {
+  kind?: string
+  scope?: string
+  [k: string]: unknown
+}
+/** 渲染用归一 entry（含运行时注入面/children/component）。 */
+export interface RenderableEntry extends SectionEntry {
+  component?: (props: Record<string, unknown>) => ReactNode
+  locale?: string
+  /** 官方语义：注入面可接收 store actions（如语言行用 actions.sync 回填选项） */
+  inject?: (actions?: unknown) => Record<string, unknown>
+  children?: Record<string, ChildSpec>
+  store?: unknown
+}
+
+/* uSES + selector（镜像官方 observable hook 语义：raw 相同则跳过 selector） */
+const hookCache = new WeakMap<object, unknown>()
+export function observableHookOf<T, R>(source: ObservableSource<T>): (selector: (raw: T) => R) => R {
+  let hook = hookCache.get(source as object) as ((selector: (raw: T) => R) => R) | undefined
+  if (!hook) {
+    hook = (selector: (raw: T) => R): R => {
+      const [subscribe, getSnapshot] = useMemo(() => {
+        let lastRaw: T | undefined
+        let lastSelected: R | undefined
+        let has = false
+        return [
+          (onChange: () => void) => source.subscribe(onChange),
+          () => {
+            const raw = source.getSnapshot()
+            if (!has || !Object.is(lastRaw, raw)) {
+              lastRaw = raw
+              lastSelected = selector(raw)
+              has = true
+            }
+            return lastSelected as R
+          },
+        ] as const
+      }, [source, selector])
+      return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+    }
+    hookCache.set(source as object, hook as unknown)
+  }
+  return hook as (selector: (raw: T) => R) => R
+}
+
+/* 子槽版本订阅（账本变更 → 重渲染） */
+function useSlotVersion(slots: MiniSlots, key: string): number {
+  const [subscribe, getSnapshot] = useMemo(
+    () => [() => slots.subscribe(key, () => undefined), () => slots.getVersion(key)] as const,
+    [slots, key],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+/* locale seat：revision 变化换绑 */
+const localeSeatCache = new WeakMap<object, Map<string, { rev: number; t: (key: string) => string }>>()
+function localeSeat(
+  face: { bind(ns: string): (key: string) => string; getSnapshot(): { revision: number } },
+  ns: string,
+): (key: string) => string {
+  let perNs = localeSeatCache.get(face as object)
+  if (!perNs) {
+    perNs = new Map()
+    localeSeatCache.set(face as object, perNs)
+  }
+  const rev = face.getSnapshot().revision
+  const hit = perNs.get(ns)
+  if (hit && hit.rev === rev) return hit.t
+  const t = face.bind(ns)
+  perNs.set(ns, { rev, t })
+  return t
+}
+
+/* 条目错误边界 */
+export class MiniEntryBoundary extends Component<
+  { slotKey: string; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true }
+  }
+  componentDidCatch(error: unknown): void {
+    console.error('[mega-settings] managed entry crashed in', this.props.slotKey, error)
+  }
+  render(): ReactNode {
+    if (this.state.failed) {
+      return <div className="mgs-mini-failed" data-slot-error={this.props.slotKey} />
+    }
+    return this.props.children
+  }
+}
+/* 渲染一个归一 entry（官方组合序：kit + inject 面 + ownerProps） */
+export interface RenderEntryOptions {
+  ownerProps?: Record<string, unknown>
+  renderChild?: (key: string, owner?: unknown, opts?: { entryKey?: string; only?: string }) => ReactNode
+}
+export function renderMiniEntry(
+  slots: MiniSlots,
+  slotKey: string,
+  entry: RenderableEntry,
+  options: RenderEntryOptions = {},
+): ReactNode {
+  const Comp = entry.component
+  if (typeof Comp !== 'function') return null
+  const host = slots.hostFace()
+  const kit: Record<string, unknown> = {}
+  if (host.sessions) kit.useSessions = observableHookOf(host.sessions)
+  if (host.workspaces) kit.useWorkspaces = observableHookOf(host.workspaces)
+  if (entry.locale && host.locale) kit.t = localeSeat(host.locale, entry.locale)
+  // 官方语义：entry.store → resolveStore 实例；actions 需**传入注入函数**。
+  // 注入面（如语言行的 inject(actions)）靠 actions.sync 回填 store（locales/options），
+  // 不传则 store 恒空 → 下拉无选项。actions 同时以 kit.actions 交给组件。
+  let actionsOfStore: unknown
+  if (entry.store !== undefined && host.storeOf) {
+    const store = host.storeOf(entry, 'root')
+    if (store) {
+      actionsOfStore = store.actions
+      kit.useStore = observableHookOf(store)
+      kit.actions = store.actions
+    }
+  }
+  if (entry.children && Object.keys(entry.children).length > 0) {
+    kit.renderSlot = options.renderChild
+      ? options.renderChild
+      : (key: string, owner?: unknown, opts?: { entryKey?: string; only?: string }) =>
+          createElement(MiniSlotRenderer, { slots, parent: entry, slotKey: key, owner, opts })
+  }
+  const injected: Record<string, unknown> = {}
+  if (typeof entry.inject === 'function') {
+    const raw = entry.inject(actionsOfStore) ?? {}
+    const { hooks, ...rest } = raw as {
+      hooks?: Record<string, ObservableSource<unknown> | (() => unknown)>
+      [k: string]: unknown
+    }
+    Object.assign(injected, rest)
+    if (hooks) {
+      for (const name of Object.keys(hooks)) {
+        const source = hooks[name]
+        const hookName = 'use' + name[0].toUpperCase() + name.slice(1)
+        if (typeof source === 'function') {
+          const made = source()
+          if (made && typeof (made as ObservableSource<unknown>).subscribe === 'function') {
+            injected[hookName] = observableHookOf(made as ObservableSource<unknown>)
+          }
+        } else {
+          injected[hookName] = observableHookOf(source)
+        }
+      }
+    }
+  }
+  const props = { ...kit, ...injected, ...options.ownerProps } as Record<string, unknown>
+  const CompTyped = Comp as (p: Record<string, unknown>) => ReactNode
+  return (
+    <MiniEntryBoundary slotKey={slotKey}>
+      {createElement(CompTyped, props)}
+    </MiniEntryBoundary>
+  )
+}
+
+/* 子槽投影组件（list/keyed；scope root 设置页无 session 面）。
+ * 组件式实现：官方页面在 render 期间调用 renderSlot 时，内部 Hook 归属稳定，
+ * 不会违反 Rules of Hooks（否则插件页等嵌套子槽页面渲染为空/出错）。 */
+function MiniSlotRenderer(props: {
+  slots: MiniSlots
+  parent: RenderableEntry
+  slotKey: string
+  owner?: unknown
+  opts?: { entryKey?: string; only?: string }
+}): ReactNode {
+  const { slots, parent, slotKey, owner, opts } = props
+  if (!parent.children || !parent.children[slotKey]) {
+    throw new Error('SlotOwnershipError: ' + slotKey + ' is not declared by this entry\'s children')
+  }
+  const version = useSlotVersion(slots, slotKey)
+  void version
+  const winners = slots
+    .entriesOfSlot(slotKey)
+    .filter((e) => {
+      if (opts && opts.only !== undefined && (e.options?.id ?? e.id) !== opts.only) return false
+      if (opts && opts.entryKey !== undefined && e.options?.key !== opts.entryKey) return false
+      return true
+    })
+    .sort((a, b) => (a.options?.order ?? 0) - (b.options?.order ?? 0))
+  if (winners.length === 0) return null
+  return (
+    <>
+      {winners.map((e) =>
+        renderMiniEntry(slots, slotKey, e as RenderableEntry, {
+          ownerProps: (owner ?? {}) as Record<string, unknown>,
+          renderChild: (k, o, op) =>
+            createElement(MiniSlotRenderer, { slots, parent: e as RenderableEntry, slotKey: k, owner: o, opts: op }),
+        }),
+      )}
+    </>
+  )
+}
+
+/* settings.section 指定 id 的内容渲染（宿主子页用；版本订阅驱动刷新） */
+export function MiniSectionContent(props: {
+  slots: MiniSlots
+  sectionId: string
+  ownerProps?: Record<string, unknown>
+}): ReactNode {
+  const { slots, sectionId, ownerProps } = props
+  const version = useSlotVersion(slots, 'settings.section')
+  void version
+  const winner = slots
+    .entriesOfSlot('settings.section')
+    .find((e) => (e.options?.id ?? e.id) === sectionId) as RenderableEntry | undefined
+  if (!winner) return null
+  return renderMiniEntry(slots, 'settings.section', winner, { ownerProps })
+}

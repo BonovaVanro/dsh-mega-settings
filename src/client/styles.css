@@ -1,0 +1,591 @@
+/* 未分组面板 ⇄ 新建按钮切换区：禁用过渡/动画，避免交换瞬间闪烁 */
+.mgs-add-group,
+.mgs-frame,
+.mgs-rec-idle,
+.mgs-rec-on {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* 空未分组三态等高分块：面板头行高一致 + 按钮占位与接收区等高 */
+.mgs-panel__head {
+  min-height: 24px;
+}
+.mgs-add-group {
+  margin-bottom: 110px;
+}
+
+/* 空未分组「紧凑接收条」：与新建分组按钮等高（拖拽中版面零变化） */
+.mgs-ungrouped-slot {
+  width: 100%;
+}
+.mgs-drop-slot {
+  box-sizing: border-box;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+}
+.mgs-drop-slot.mgs-rec-idle {
+  border-color: var(--dsw-alias-border-l2);
+  background: transparent;
+  opacity: 0.8;
+}
+.mgs-drop-slot.mgs-rec-on {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-interactive-bg-hover-accent, transparent);
+  color: var(--dsw-alias-label-primary);
+  opacity: 1;
+}
+
+/* 整宽「新建分组」按钮（未分组面板隐藏时出现在分组末尾） */
+.mgs-add-group {
+  box-sizing: border-box;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.mgs-add-group:hover {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* 空未分组接收槽两态：未命中弱化（避免与落点虚框混淆成两个落点） */
+.mgs-rec-idle {
+  border-color: var(--dsw-alias-border-l2, #555) !important;
+  background: transparent !important;
+  opacity: 0.55;
+}
+.mgs-rec-on {
+  border-color: var(--dsw-alias-brand-primary, #6cf) !important;
+  background: var(--dsw-alias-interactive-bg-hover-accent, transparent);
+  opacity: 1;
+}
+
+/* 分组面板禁用划选（改名输入框除外） */
+.mgs-group-drag {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mgs-group-drag input,
+.mgs-group-drag textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 分组拖拽排序：组间插入条 */
+.mgs-group-strip {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.16));
+  transition: background 100ms ease;
+}
+.mgs-group-strip--over {
+  background: var(--dsw-alias-brand-primary, #6cf);
+}
+/* 分组拖拽容器（静态时无额外样式） */
+.mgs-group-drag {
+  min-width: 0;
+}
+
+/* mega-settings 样式（v0.4）：
+ * 只消费 --dsw-alias-* 语义令牌（MR-08/红线 5），不写 data-ds-dark-theme 分支；
+ * v0.4（用户拍板）：header 恒定标题（徽章） + 返回钮；面板成独立区块（成员管理单独一块，样式一致）。
+ * 经 scripts/build-client.mjs 注入 client bundle（style[data-plugin] 标签，HMR 可清理）。 */
+
+.mgs-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 标题栏：恒定显示标题徽章 */
+.mgs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mgs-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* 版本徽章：bg-layer-2 底 / border-l2 / 999 胶囊 / padding 4px 12px 4px 14px（光学居中）/ name 600 + tag accent-soft 胶囊 */
+.mgs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 4px 12px 4px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.mgs-badge-name {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.mgs-badge-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--dsw-alias-accent-soft, var(--dsw-alias-border-l2));
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 当前成员名（子页面；徽章旁分隔显示） */
+/* 成员名 = 徽章（.mgs-badge 复用，见上） */
+
+/* 返回按钮（小胶囊） */
+/* 按钮一律接受主题（皮肤）默认样式；宿主仅保留布局与光标 */
+/* 返回按钮（token 驱动小胶囊） */
+.mgs-back {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.mgs-back:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* 头部徽章分隔符（>） */
+.mgs-header-divider {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
+/* 主体：宿主透明底，区块间 16px 间距；禁止横向滚动 */
+.mgs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 内容区块（自身设置 / 成员管理，同款面板样式） */
+.mgs-panel {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-3);
+  border-radius: 16px;
+}
+
+/* 配置行 */
+.mgs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 32px;
+}
+
+.mgs-row-label {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
+/* 单选组（设置入口：插件页 / 导航栏，无「默认」标注） */
+.mgs-radio-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mgs-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mgs-radio input[type='radio'] {
+  accent-color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}
+
+/* 控件 */
+/* 开关 */
+.mgs-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 21px;
+  flex-shrink: 0;
+}
+
+.mgs-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mgs-switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 999px;
+  transition: background 160ms ease, border-color 160ms ease;
+  pointer-events: none;
+}
+
+.mgs-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-dimmed);
+  transition: transform 160ms ease, background 160ms ease;
+  pointer-events: none;
+}
+
+.mgs-switch input:checked + .mgs-switch-track {
+  background: var(--dsw-alias-brand-primary);
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.mgs-switch input:checked + .mgs-switch-track .mgs-switch-thumb {
+  transform: translateX(17px);
+  background: var(--dsw-alias-label-primary-inverted);
+}
+
+/* 分段控件（收纳/折叠切换）：外观随主题 token；选中 = 浅色强调底 + 品牌色文字 */
+.mgs-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  align-self: flex-start;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+  overflow: hidden;
+}
+.mgs-seg-item {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.mgs-seg-item:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+.mgs-seg-active,
+.mgs-seg-active:hover {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+  color: var(--dsw-alias-brand-primary);
+}
+/* 成员列表 */
+.mgs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mgs-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 空态与占位 */
+.mgs-empty,
+.mgs-placeholder {
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+/* 成员页失败占位 */
+.mgs-member-failed {
+  text-align: center;
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mgs-switch-track,
+  .mgs-switch-thumb,
+  .mgs-back,
+  .mgs-entry {
+    transition: none;
+  }
+}
+
+/* 卡片视图（view=card；auto-fill 180px 小卡片） */
+.mgs-member-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.mgs-member-card:hover {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+}
+
+.mgs-member-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ============ v2 管控中心 ============ */
+.mgs-panel__head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mgs-card { display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-3, #222); border-radius: 12px; cursor: pointer; width: 100%; min-width: 0; box-sizing: border-box; }
+.mgs-card:hover { border-color: var(--dsw-alias-border-l1, #555); }
+.mgs-card-name { font-weight: 600; font-size: 13px; color: var(--dsw-alias-label-primary, #eee); }
+.mgs-card-tag { font-size: 11px; color: var(--dsw-alias-label-secondary, #aaa); }
+.mgs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.mgs-managed-page { min-height: 200px; }
+.mgs-mini-failed { min-height: 120px; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #999); }
+.mgs-hint { font-size: 12px; margin-top: 6px; }
+.mgs-card-tag, .mgs-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mgs-header { flex-wrap: wrap; gap: 8px; }
+
+/* v0.5 收纳：组头操作与图标按钮 */
+.mgs-panel__head { display: flex; align-items: center; gap: 8px; }
+.mgs-panel__ops { margin-left: auto; display: inline-flex; gap: 2px; }
+.mgs-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: none; border-radius: 8px; background: none; color: var(--dsw-alias-label-secondary); cursor: pointer; padding: 0; }
+.mgs-icon-btn:hover { background: var(--dsw-specific-sidebar-nav-item-hover); color: var(--dsw-alias-label-primary); }
+.mgs-group-edit { flex: 1; min-width: 0; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); font-size: 13px; }
+
+.mgs-card { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.mgs-card-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; cursor: pointer; flex: 1; }
+.mgs-card-ops { display: flex; align-items: center; flex: none; }
+
+/* v0.6.1：收纳模式滚动贴 border 内壁——options 左右 padding 移除（滚动容器即官方 options），
+   内容呼吸由 mgs-header / mgs-body 自持（左右 24px） */
+.mgs-options-mega {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+.mgs-options-mega .mgs-header,
+.mgs-options-mega .mgs-body {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* v0.7：卡片左右结构 —— 操作区与名称同行（小开关） */
+.mgs-card { align-items: flex-start; user-select: none; -webkit-user-select: none; }
+.mgs-card-ops { align-self: flex-start; }
+
+/* 虚拟卡片框（拖拽落点标记：悬停目标卡左/右半区时显示于对应侧） */
+/* 空未分组拖拽接收槽（整行宽；固定高 76px，与静态占位外框计算一致） */
+.mgs-frame-wide {
+  grid-column: 1 / -1;
+  height: 76px;
+}
+
+.mgs-frame {
+  box-sizing: border-box;
+  min-height: 64px;
+  border: 1px dashed var(--dsw-alias-brand-primary, #6cf);
+  border-radius: 12px;
+  background: var(--dsw-alias-interactive-bg-hover-accent, transparent);
+}
+
+/* 小号开关（卡片接管操作区） */
+.mgs-switch--sm { width: 34px; height: 19px; }
+.mgs-switch--sm input:checked + .mgs-switch-track .mgs-switch-thumb { transform: translateX(15px); }
+
+/* 拖拽虚影：跟随指针的名称芯片（drag image） */
+.mgs-drag-ghost {
+  position: fixed; left: -9999px; top: 0; z-index: 2147483000;
+  display: inline-flex; align-items: center; max-width: 240px;
+  padding: 5px 10px; border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px; background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary); font-size: 12px; line-height: 18px;
+  box-shadow: var(--dsw-shadow-lv2, 0 6px 20px rgba(0, 0, 0, 0.2));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.mgs-card * { user-select: none; -webkit-user-select: none; }
+
+/* 卡片网格插入槽：占用网格单元，实时预览插入位置 */
+
+/* 折叠设置行：图标在左、展开标识在右 */
+.mgs-fold-head-icon {
+  display: inline-flex; flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+.mgs-fold-chevron {
+  flex: none; font-size: 14px; line-height: 14px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* 拖拽落地区域常显（拖拽进行中可见，悬停高亮） */
+.mgs-fold-zone { background: var(--dsw-alias-interactive-bg-hover-accent, rgba(0, 230, 118, 0.2)); }
+.mgs-fold-zone--over { background: var(--dsw-alias-brand-primary, #6cf); }
+/* 折叠体行间/空未分组接收槽（接管落点指示） */
+.mgs-fold-zone {
+  box-sizing: border-box; height: 7px; margin: 0 16px 0 34px;
+  border-radius: 4px; transition: background 100ms ease;
+}
+.mgs-fold-zone--over { background: var(--dsw-alias-brand-primary, #6cf); }
+.mgs-fold-zone-wide { margin: 2px 16px 6px 24px; }
+/* ===== 落点虚线框（与真实行同尺寸；置于末尾保证覆盖旧插入条规则） ===== */
+/* navlist 落点框：几何完全复用官方 navCell 类（与行同高同宽）；
+   双类选择器提高特异性，避免官方 navCell 的 border:none/background 覆盖 */
+.mgs-nav-zone.mgs-nav-zone {
+  margin: 0;
+  flex: none;
+  border: 1px dashed var(--dsw-alias-border-l2) !important;
+  border-radius: 12px;
+  background: transparent !important;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.mgs-nav-zone--over.mgs-nav-zone--over {
+  border-color: var(--dsw-alias-brand-primary) !important;
+  background: var(--dsw-alias-interactive-bg-hover-accent, transparent) !important;
+  opacity: 1;
+}
+.mgs-fold-zone {
+  height: 34px;
+  margin-left: 20px;
+  width: calc(100% - 20px);
+  box-sizing: border-box;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  opacity: 0.85;
+}
+.mgs-fold-zone--over {
+  border-color: var(--dsw-alias-brand-primary) !important;
+  background: var(--dsw-alias-interactive-bg-hover-accent, transparent);
+  opacity: 1;
+}
+.mgs-fold-zone-wide {
+  height: 34px;
+  margin: 0 0 0 20px;
+  width: calc(100% - 20px);
+}
+
+/* ===== 折叠体分组标题：hover 显示重命名铅笔；行内编辑输入（置于末尾保证覆盖） ===== */
+.mgs-fold-sep.mgs-fold-title { gap: 4px; padding-right: 6px; cursor: default; }
+.mgs-fold-title-label {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mgs-fold-title-ops { display: none; align-items: center; flex: none; gap: 2px; }
+.mgs-fold-sep.mgs-fold-title:hover .mgs-fold-title-ops { display: inline-flex; }
+.mgs-fold-title-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; border: none !important; border-radius: 6px;
+  background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer;
+}
+.mgs-fold-title-btn:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  color: var(--dsw-alias-label-primary);
+}
+.mgs-fold-title-input {
+  flex: 1; min-width: 0; height: 20px; padding: 1px 8px; box-sizing: border-box;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit; font-size: 12px; line-height: 18px;
+}
+.mgs-fold-title-input:focus { outline: none; border-color: var(--dsw-alias-brand-primary); }
+
+/* ===== 折叠体「新建分组」伪标题行（复用 mgs-fold-sep；整行可点） ===== */
+.mgs-fold-addrow {
+  gap: 4px; cursor: pointer; text-align: left;
+  background: none; border: none; font-family: inherit;
+}
+.mgs-fold-addrow .mgs-icon { flex: none; }
+.mgs-fold-addrow:hover { color: var(--dsw-alias-label-primary); }
+.mgs-fold-addrow:hover .mgs-icon { color: var(--dsw-alias-brand-primary); }
+
+/* ===== 未分组标题行 + 新建分组按钮 ===== */
+.mgs-fold-sep-u { gap: 4px; }
+.mgs-fold-addplus {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; border: none !important; border-radius: 6px;
+  background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer;
+  flex: none;
+}
+.mgs-fold-addplus:hover {
+  background: var(--dsw-specific-sidebar-nav-item-hover);
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* ===== 收纳分组面板：内边距 16px；改名/删除仅 hover 分组头时显示 ===== */
+.mgs-panel { padding: 16px; }
+.mgs-panel__ops-hover { display: none; }
+.mgs-panel__head:hover .mgs-panel__ops-hover { display: inline-flex; }
+
