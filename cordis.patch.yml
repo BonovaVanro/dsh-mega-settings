@@ -1,0 +1,4 @@
+# dsh bundle patch: mega-settings 宿主（row id 避开官方 core row：tools/session/llm/web/permission）
+- insert:
+    - id: ui-mega-settings
+      name: dsh-mega-settings
