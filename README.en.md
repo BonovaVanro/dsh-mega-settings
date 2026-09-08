@@ -1,6 +1,6 @@
 # mega-settings
 
-[简体中文](./README.md) · **English**
+[简体中文](https://github.com/BonovaVanro/dsh-mega-settings/blob/main/README.md) · **English**
 
 A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin settings entries into one place, organized by your own groups. It is the host of the mega family — Collect and Fold modes share the same grouping data.
 
@@ -77,7 +77,7 @@ dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.1
 dsh plugin --profile web add dsh-mega-settings-0.1.1.tgz
 ```
 
-**npm (publishing on hold — not available yet)**
+**npm**
 
 ```
 dsh plugin --profile web add dsh-mega-settings@0.1.1

@@ -1,6 +1,6 @@
 # mega-settings
 
-[English](./README.en.md) · **中文**
+[English](https://github.com/BonovaVanro/dsh-mega-settings/blob/main/README.en.md) · **中文**
 
 DSH（DeepSeek Harness）的**统一设置中心**：把散落插件的设置入口收进一处，按你的习惯分组管理。
 属于 mega 系列家族宿主——收纳（collect）与折叠（fold）两种模式共用同一份分组数据。
@@ -78,7 +78,7 @@ dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.1
 dsh plugin --profile web add dsh-mega-settings-0.1.1.tgz
 ```
 
-**npm（发布暂缓中，暂不可用）**
+**npm**
 
 ```
 dsh plugin --profile web add dsh-mega-settings@0.1.1
