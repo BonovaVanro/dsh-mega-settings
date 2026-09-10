@@ -11,16 +11,19 @@ export const name = 'dsh-mega-settings'
 export const inject = ['settings', 'webServer']
 
 /**
- * dsh 版本兼容策略（0.1.2 线：严格匹配 dsh 0.1.2-rc.1）。
- * - '= 0.1.2-rc.1' 表示仅接受该版本（其余版本控制台警示，不阻断加载）；
- * - 0.1.1-* 维护线（0.1.1-rc.1 / 0.1.1-rc.2）由 0.1.1 分支负责，此处会给出不兼容警示；
- * - 也可改用数组或范围，如 { op: '=', target: ['0.1.2-*', '0.1.3-*'] } / { op: '>=', target: '0.1.2-alpha.2' }。
+ * dsh 版本兼容策略：锁定 dsh-v0.1.5 rc 线（'= 0.1.5-rc.*'）。
+ * - rc 线（rc.1 / rc.2 …）对本插件所依赖的 settings / slots / locale 契约一致，
+ *   无需业务代码迁移；
+ * - 0.1.5-alpha.* 不在本范围（通配 'rc.*' 只命中 rc 预发布），正式版 0.1.5 亦未适配；
+ * - 其余版本（含 0.1.2 线）控制台警示，不阻断加载；
+ * - 0.1.1-* 维护线由 0.1.1 分支、0.1.2-rc.1 由 0.1.2 分支负责，此处会给出不兼容警示；
+ * - 也可改用数组或范围，如 { op: '=', target: ['0.1.5-rc.*', '0.1.6-rc.*'] }。
  */
-const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.2-rc.1' }
+const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.5-rc.*' }
 
 const dshRequire = createRequire(import.meta.url)
 
-/** 探测当前 dsh 版本：优先 @deepseek-ai/dsh 本体，回退 lockstep 的 0.1.2 线包
+/** 探测当前 dsh 版本：优先 @deepseek-ai/dsh 本体，回退 lockstep 的 0.1.5 线包
  *  （dsh-client-store / dsh-client-ui-renderer，取代已停发的 dsh-client-runtime）。 */
 function detectDshVersion(): string | null {
   for (const pkg of ['@deepseek-ai/dsh', 'dsh', '@deepseek-ai/dsh-client-store', '@deepseek-ai/dsh-client-ui-renderer']) {

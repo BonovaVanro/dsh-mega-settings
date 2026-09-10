@@ -63,25 +63,25 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 
 ## Install
 
-Adapted to dsh v0.1.2-rc.1 (the 0.1.2 line). For dsh v0.1.1-* use the 0.1.1 branch release.
+Adapted to dsh v0.1.5-rc.\* (the 0.1.5 rc line: rc.1 / rc.2 …). For dsh v0.1.1-* use the 0.1.1 branch release, and for dsh v0.1.2-rc.1 use the 0.1.2 branch release.
 Three sources are supported: GitHub tag, local package, and npm.
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.1
 ```
 
 **Local package**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.1.tgz
 ```
 
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.2
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.1
 ```
 
 ## Getting started
@@ -93,9 +93,9 @@ dsh plugin --profile web add dsh-mega-settings@0.1.2
 
 ## Supported dsh versions & compatibility
 
-- **Adapted to dsh version: 0.1.2-rc.1** (the 0.1.2 line; adapted from the dsh v0.1.1-rc.2 → v0.1.2-rc.1 diff, consistent with the published 0.1.2-rc.1 API);
-- The dsh 0.1.1-* maintenance line belongs to the 0.1.1 branch release;
-- On startup the host self-checks the version policy (default `= 0.1.2-rc.1`); other versions make the console print
+- **Adapted to dsh version: 0.1.5-rc.\*** (the 0.1.5 rc line: rc.1 / rc.2 …; adapted from the dsh v0.1.2-rc.1 → v0.1.5-rc.1 diff);
+- The dsh 0.1.1-* maintenance line belongs to the 0.1.1 branch release, and the 0.1.2 line to the 0.1.2 branch release;
+- On startup the host self-checks the version policy (default `= 0.1.5-rc.*`); other versions make the console print
   `dsh-mega-settings may not be compatible with dsh <version> — use with caution`, and the plugin still loads;
 - Maintainers may tune `DSCH_COMPAT_POLICY` in `src/index.ts` (supports > / < / = with wildcard patterns and arrays).
 

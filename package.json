@@ -1,7 +1,16 @@
 {
   "name": "dsh-mega-settings",
-  "version": "0.1.2",
+  "version": "0.1.5-rc.1",
   "description": "DSH mega 系列插件统一设置收纳宿主：双层配置结构（自身配置页+成员入口 / 成员配置页），注册成员与接管成员双机制，只收页面不收数据。",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/BonovaVanro/dsh-mega-settings#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BonovaVanro/dsh-mega-settings.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BonovaVanro/dsh-mega-settings/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -21,11 +30,16 @@
     "src",
     "cordis.patch.yml",
     "README.md",
-    "README.en.md"
+    "README.en.md",
+    "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.json && node scripts/build-client.mjs",
     "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
     "prepare": "npm run build",
     "test": "vitest run tests"
   },
@@ -34,12 +48,10 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-invariants": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.5-rc.1 <0.1.5",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.5-rc.1 <0.1.5",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.5-rc.1 <0.1.5",
+    "@deepseek-ai/dsh-settings": ">=0.1.5-rc.1 <0.1.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -53,12 +65,10 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-client-locale": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-settings": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-invariants": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-settings": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.5-rc.1",
+    "@deepseek-ai/dsh-settings": "0.1.5-rc.1",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",

@@ -16,8 +16,8 @@ dev/
 .verification/
 
 # 编辑器与 IDE
-.vscode/
-.idea/
+/.vscode/
+/.idea/
 *.swp
 
 # 系统文件

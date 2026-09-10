@@ -140,4 +140,17 @@ describe('compat: checkDshPolicy + 提示文案', () => {
       'dsh-mega-settings 可能不适配 dsh 0.1.1-rc.2 版本，请慎重使用',
     )
   })
+
+  it('0.1.5.alpha 分支策略：= 0.1.5-* 命中 0.1.5 整条预发布线', () => {
+    expect(checkDshPolicy('0.1.5-alpha.1', { op: '=', target: '0.1.5-*' })).toBe(true)
+    expect(checkDshPolicy('0.1.5-alpha.2', { op: '=', target: '0.1.5-*' })).toBe(true)
+    expect(checkDshPolicy('0.1.5-rc.1', { op: '=', target: '0.1.5-*' })).toBe(true)
+  })
+
+  it('0.1.5.alpha 分支策略：不命中其他基线/正式版', () => {
+    expect(checkDshPolicy('0.1.5', { op: '=', target: '0.1.5-*' })).toBe(false) // 正式版非预发布
+    expect(checkDshPolicy('0.1.2-rc.1', { op: '=', target: '0.1.5-*' })).toBe(false)
+    expect(checkDshPolicy('0.1.4-alpha.1', { op: '=', target: '0.1.5-*' })).toBe(false)
+    expect(checkDshPolicy('0.1.6-alpha.1', { op: '=', target: '0.1.5-*' })).toBe(false)
+  })
 })

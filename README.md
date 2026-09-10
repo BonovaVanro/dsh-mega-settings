@@ -64,25 +64,25 @@ DSH（DeepSeek Harness）的**统一设置中心**：把散落插件的设置入
 
 ## 安装
 
-已适配 dsh v0.1.2-rc.1（0.1.2 线）。dsh v0.1.1-* 请使用 0.1.1 分支版本。
+已适配 dsh v0.1.5-rc.\*（0.1.5 rc 线：rc.1 / rc.2 …）。dsh v0.1.1-* 请使用 0.1.1 分支版本，dsh v0.1.2-rc.1 请使用 0.1.2 分支版本。
 提供 GitHub tag / 本地包 / npm 三种安装方式。
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.1
 ```
 
 **本地包**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.1.tgz
 ```
 
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.2
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.1
 ```
 
 ## 快速上手
@@ -94,9 +94,9 @@ dsh plugin --profile web add dsh-mega-settings@0.1.2
 
 ## 适用 dsh 版本与兼容性
 
-- **适配 dsh 版本：0.1.2-rc.1**（0.1.2 线；基于 dsh v0.1.1-rc.2 → v0.1.2-rc.1 的差异适配，与已发布 0.1.2-rc.1 API 一致）；
-- dsh 0.1.1-* 维护线归 0.1.1 分支版本；
-- 宿主启动会按版本策略自检（默认 `= 0.1.2-rc.1`）；其他版本控制台会打印
+- **适配 dsh 版本：0.1.5-rc.\***（0.1.5 rc 线通配：rc.1 / rc.2 …；基于 dsh v0.1.2-rc.1 → v0.1.5-rc.1 的差异适配）；
+- dsh 0.1.1-* 维护线归 0.1.1 分支版本，0.1.2 线归 0.1.2 分支版本；
+- 宿主启动会按版本策略自检（默认 `= 0.1.5-rc.*`）；其他版本控制台会打印
   `dsh-mega-settings 可能不适配 dsh <版本> 版本，请慎重使用`，插件仍可加载使用；
 - 维护者可自行调整 `src/index.ts` 的 `DSCH_COMPAT_POLICY`（支持 > / < / = 与通配、数组）。
 
