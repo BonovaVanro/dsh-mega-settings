@@ -11,8 +11,28 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 - **Groups**: create (type the name right away, Enter to confirm), rename/delete via hover actions on the title, or use the + on the ungrouped row;
 - **Drag & drop** (same in both modes): pointer-drag with the original element following the cursor (no browser ghost), a single dashed slot above/below the hovered row half, FLIP smooth reflow with a judgement lock, and edge auto-scroll;
 - **Native look**: only dsh semantic tokens and official visuals, no theme branches;
+- **mega Optimize**: a hub of optimization toggles for dsh and third-party plugins — rightbar fullscreen zero track / fullscreen background transparency (slider; larger = more transparent) / hide the conversation toolbar in fullscreen; third-party entries get one panel per plugin and are hidden (and not injected) when the plugin is not installed or not enabled; adding an optimization is just appending a registry def;
 - **Version self-check**: on host startup verifies the current dsh version line and warns in the console when unsupported (never blocks loading).
 
+## mega Optimize
+
+"mega Optimize" is a mega member page of this plugin (a card in the mega group in Collect mode / a row in the mega section in Fold mode) hosting optimization toggles for dsh and third-party plugins. All toggles apply **immediately and are reversible**.
+
+### dsh group
+
+- **Rightbar fullscreen zero track**: forces the grid placeholder track to 0 while the right sidebar is fullscreen so the center column keeps its width (restored correctly on exit/close);
+- **Rightbar fullscreen background transparency**: slider 0-100, larger = more transparent (default 25); re-blends the fullscreen panel background with the current theme color;
+- **Hide conversation toolbar in fullscreen**: hides the conversation header utilities while the right sidebar is fullscreen.
+
+### Third-party plugins
+
+Each plugin gets its own panel (plugin name + version in the header); **plugins that are not installed or not enabled are hidden and their effects are not injected**. Currently:
+
+- **dsh-better-sidebar**: hide the bottom-panel toggle.
+
+### Extensibility
+
+Optimizations use a registry: each optimization is one def in `src/client/optimize.ts` (id / group / target plugin / locale keys / effect); toggles live in `optToggles`, numeric values in `optValues`; effects support static CSS, slider-driven CSS, and JS effects. Adding an optimization is just appending a def — the page places it into the dsh group or the matching plugin panel automatically.
 <!-- TODO(screenshots): fill each src once images are ready (put them under assets/, width <=1280px). Feel free to add/remove items -->
 ## Screenshots
 ### Collect mode
@@ -64,24 +84,24 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 ## Install
 
 Adapted to dsh v0.1.5-rc.\* (the 0.1.5 rc line: rc.1 / rc.2 …). For dsh v0.1.1-* use the 0.1.1 branch release, and for dsh v0.1.2-rc.1 use the 0.1.2 branch release.
-Three sources are supported: GitHub tag, local package, and npm.
+Three sources are supported: npm, GitHub tag, and local package.
+
+**npm**
+
+```
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2
+```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.1
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2
 ```
 
 **Local package**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.1.tgz
-```
-
-**npm**
-
-```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.1
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2.tgz
 ```
 
 ## Getting started
@@ -98,6 +118,28 @@ dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.1
 - On startup the host self-checks the version policy (default `= 0.1.5-rc.*`); other versions make the console print
   `dsh-mega-settings may not be compatible with dsh <version> — use with caution`, and the plugin still loads;
 - Maintainers may tune `DSCH_COMPAT_POLICY` in `src/index.ts` (supports > / < / = with wildcard patterns and arrays).
+
+## FAQ
+
+**A third-party plugin panel (e.g. dsh-better-sidebar) is missing from mega Optimize?**
+
+Third-party panels only show when the plugin is **installed and enabled** — not installed, or installed but disabled, and the panel is hidden and its effects are not injected. Make sure the plugin is installed and enabled (an enabled plugin registers its settings section).
+
+**A toggle is on but nothing changes?**
+
+All toggles apply immediately; a few UI tweaks (e.g. rightbar fullscreen zero track) fully apply after a page refresh. If it still does not work, confirm the target plugin is enabled, or hard-refresh (Ctrl+F5).
+
+**Will switching between Collect and Fold modes lose my groups?**
+
+No. Both modes share the same grouping data (groups / navOrder); switch anytime and everything is preserved.
+
+**Does mega Optimize modify third-party plugin data?**
+
+No. Optimizations only inject UI styles/behaviors (CSS/JS) and never read or write third-party plugin config; toggles and values live only in this plugin's own config (optToggles / optValues).
+
+**Why isn't mega Optimize published as a separate plugin?**
+
+To avoid maintaining another release line. mega Optimize ships as a mega member page of mega-settings, sharing one version number and release flow; adding an optimization only touches the registry (append a def), so a separate package would only add maintenance burden.
 
 ## License
 

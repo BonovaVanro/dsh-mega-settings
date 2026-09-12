@@ -230,27 +230,6 @@
   font-size: 13px;
 }
 
-/* 单选组（设置入口：插件页 / 导航栏，无「默认」标注） */
-.mgs-radio-group {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.mgs-radio {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.mgs-radio input[type='radio'] {
-  accent-color: var(--dsw-alias-brand-primary);
-  cursor: pointer;
-}
-
 /* 控件 */
 /* 开关 */
 .mgs-switch {
@@ -330,26 +309,6 @@
   background: var(--dsw-alias-interactive-bg-hover-accent);
   color: var(--dsw-alias-brand-primary);
 }
-/* 成员列表 */
-.mgs-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mgs-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-}
-
 /* 空态与占位 */
 .mgs-empty,
 .mgs-placeholder {
@@ -370,37 +329,11 @@
 @media (prefers-reduced-motion: reduce) {
   .mgs-switch-track,
   .mgs-switch-thumb,
-  .mgs-back,
-  .mgs-entry {
+  .mgs-back {
     transition: none;
   }
 }
 
-/* 卡片视图（view=card；auto-fill 180px 小卡片） */
-.mgs-member-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 10px;
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease;
-}
-
-.mgs-member-card:hover {
-  border-color: var(--dsw-alias-brand-primary);
-  color: var(--dsw-alias-label-primary);
-}
-
-.mgs-member-card-name {
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 /* ============ v2 管控中心 ============ */
 .mgs-panel__head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .mgs-card { display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2, #333); background: var(--dsw-alias-bg-layer-3, #222); border-radius: 12px; cursor: pointer; width: 100%; min-width: 0; box-sizing: border-box; }
@@ -589,3 +522,78 @@
 .mgs-panel__ops-hover { display: none; }
 .mgs-panel__head:hover .mgs-panel__ops-hover { display: inline-flex; }
 
+
+/* ============ mega 优化页（OptimizeCenter） ============ */
+/* 成员页：宿主已渲染徽章头与返回键，页面自身只承载面板（flex 列 + 16px 间距，两模式一致） */
+.mgs-opt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.mgs-opt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 4px 0;
+}
+.mgs-opt-row--off {
+  opacity: 0.55;
+}
+.mgs-opt-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mgs-opt-name {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.mgs-opt-desc {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.mgs-opt-target {
+  flex: none;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  white-space: nowrap;
+}
+/* 优化项滑块行（透明度等 0-100 数值配置，数值越大越透明） */
+.mgs-opt-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+  padding: 2px 0 2px 0;
+}
+.mgs-opt-slider-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  min-width: 48px;
+}
+.mgs-opt-slider input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}
+.mgs-opt-slider-value {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+  min-width: 36px;
+  text-align: right;
+}

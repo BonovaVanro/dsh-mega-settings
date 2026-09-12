@@ -1,6 +1,6 @@
 {
   "name": "dsh-mega-settings",
-  "version": "0.1.5-rc.1",
+  "version": "0.1.5-rc.2",
   "description": "DSH mega 系列插件统一设置收纳宿主：双层配置结构（自身配置页+成员入口 / 成员配置页），注册成员与接管成员双机制，只收页面不收数据。",
   "license": "Apache-2.0",
   "homepage": "https://github.com/BonovaVanro/dsh-mega-settings#readme",

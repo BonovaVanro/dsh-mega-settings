@@ -46,8 +46,8 @@ import {
   IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsCenter, type SettingsCenterInjected } from './SettingsCenter.tsx'
-
-declare const MGS_VERSION: string
+import { syncOptimizeEffects } from './optimize-effects.ts'
+import { readVersionsCache } from './versions.ts'
 
 export interface ShellInjected {
   scope: SettingsCenterInjected['scope']
@@ -608,6 +608,13 @@ export function SettingsShell(props: ShellProps) {
     ? (useSections((r: unknown) => r) as { id: string; order: number; label: string }[])
     : localSections(slots)
   ).filter((r) => r.id.length > 0)
+  // mega 优化效果常驻同步（样式标签 + JS 效果；开关变更即时注入/卸载；幂等）
+  // installed 取版本缓存；activeSections = 现行 settings.section 条目（插件未启用 → 不注入）
+  const activeSectionsSig = navRows.map((r) => r.id).join('|')
+  useEffect(() => {
+    syncOptimizeEffects(config, new Set(Object.keys(readVersionsCache())), new Set(navRows.map((r) => r.id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, activeSectionsSig])
   const [open, setOpen] = useState(false)
   const [target, setTarget] = useState<NavTarget>(null)
   // 折叠设置默认收起（$fold: true）；每次打开弹层恢复收起

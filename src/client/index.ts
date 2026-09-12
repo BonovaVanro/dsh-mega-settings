@@ -8,9 +8,13 @@ import { SettingsShell } from './SettingsShell.tsx'
 import { memberLabel, type MemberEntry, type SectionEntry } from './pure.ts'
 import { zh, en } from './locales.ts'
 import type { MegaSettingsConfig } from '../schema.ts'
-import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT } from './seats.ts'
+import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID } from './seats.ts'
 import type { MiniSlots } from './mini.tsx'
-export { MEMBER_META_SEAT, MEMBER_PAGE_SEAT }
+import { OptimizeCenter } from './OptimizeCenter.tsx'
+export { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID }
+
+/** 构建期注入的包版本（scripts/build-client.mjs；成员徽章/优化页徽章用）。 */
+declare const MGS_VERSION: string
 
 export const name = 'dsh-mega-settings'
 export const inject = ['slots', 'settingsScope', 'locale']
@@ -193,4 +197,38 @@ export function apply(ctx: Context): void {
 
   // 设置壳恒驻（shadow sidebar.settings）；mode/entry 在壳与设置中心内读取，挂载不迁移
   mountShell(ctx, scope, () => t('settings.center'))
+
+  // 自身作为 mega 成员：mega 优化页（元信息 seat + 页面 seat，与成员契约一致——
+  // 收纳模式出现在「mega」组卡片、折叠模式出现在 mega 固组行；宿主自足场景同款呈现）
+  const slots = ctx.slots as unknown as SlotsLike
+  slots.inject(MEMBER_META_SEAT, () =>
+    slots.register(
+      {
+        name: MEMBER_META_SEAT,
+        id: MEMBER_OPTIMIZE_ID,
+        order: 0,
+        label: () => t('opt.title'),
+        inject: () => ({ description: () => t('opt.title'), version: MGS_VERSION }),
+      },
+      MemberRowPlaceholder,
+    ),
+  )
+  slots.inject(MEMBER_PAGE_SEAT, () =>
+    slots.register(
+      {
+        name: MEMBER_PAGE_SEAT,
+        key: MEMBER_OPTIMIZE_ID,
+        order: 0,
+        label: () => t('opt.title'),
+        locale: 'mega-settings',
+        inject: () => ({ scope, slots: slotsFace(ctx) }),
+      },
+      OptimizeCenter,
+    ),
+  )
+}
+
+/** 元信息 seat 占位组件（宿主自绘成员列表，组件不被渲染；与成员契约一致）。 */
+function MemberRowPlaceholder(): null {
+  return null
 }

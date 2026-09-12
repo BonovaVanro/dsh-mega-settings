@@ -29,6 +29,7 @@ import {
 import { NAV_HUB_ID } from './pure.ts'
 import { MEMBER_PAGE_SEAT } from './seats.ts'
 import { MiniSectionContent, type MiniSlots } from './mini.tsx'
+import { useVersions } from './versions.ts'
 
 /** 构建期注入的包版本（scripts/build-client.mjs）。 */
 declare const MGS_VERSION: string
@@ -165,58 +166,6 @@ function useOpenTarget(
   }
   return [open, openTarget]
 }
-/** 版本缓存键（localStorage）：进入设置先用上次记录的版本，再后台 fetch 刷新——
- * 避免每次进来先空/先「未知」再跳具体版本的抖动。 */
-const VERSIONS_CACHE_KEY = 'dsh-mega-settings.versions.v1'
-function readVersionsCache(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(VERSIONS_CACHE_KEY)
-    if (!raw) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, string>
-    }
-  } catch {
-    /* 坏缓存/不可用环境忽略 */
-  }
-  return {}
-}
-function writeVersionsCache(versions: Record<string, string>): void {
-  try {
-    localStorage.setItem(VERSIONS_CACHE_KEY, JSON.stringify(versions))
-  } catch {
-    /* 写入失败忽略 */
-  }
-}
-
-/** 已安装包版本映射：初始同步取 localStorage 缓存（首帧即有旧版本），
- * 后台 fetch host /api/dsh-mega-settings/versions 刷新并回写缓存。
- * done = fetch 已结束（成功或失败）——仅当无缓存且 fetch 未结束时徽章留空，
- * 避免首帧闪「未知」再跳具体版本。 */
-function useVersions(): { versions: Record<string, string>; done: boolean } {
-  const [map, setMap] = useState<Record<string, string>>(readVersionsCache)
-  const [done, setDone] = useState(false)
-  useEffect(() => {
-    let alive = true
-    fetch('/api/dsh-mega-settings/versions')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { versions?: Record<string, string> } | null) => {
-        if (alive && d && d.versions) {
-          setMap(d.versions)
-          writeVersionsCache(d.versions)
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (alive) setDone(true)
-      })
-    return () => {
-      alive = false
-    }
-  }, [])
-  return { versions: map, done }
-}
-
 /* ================= 静态卡片 ================= */
 function IconEdit() { return (<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11.3 2.3l2.4 2.4L5.5 12.9l-3.2.8.8-3.2 8.2-8.2z"/></svg>) }
 function IconTrash() { return (<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.6 9.5h6.8L12 4M6.6 6.8v4M9.4 6.8v4"/></svg>) }

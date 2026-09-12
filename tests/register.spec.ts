@@ -27,16 +27,15 @@ describe('dsh-mega-settings 注册契约', () => {
     expect(typeof json.uid).toBe('number')
   })
 
-  it('默认配置完整（v2：entry/mode/defaultExpand/groups/noTitlePlugins/lastMember）', () => {
-    expect(defaultConfig.entry).toBe('plugins')
+  it('默认配置完整（v2：mode/groups/lastMember 等）', () => {
     expect(defaultConfig.mode).toBe('collect')
-    expect(defaultConfig.defaultExpand).toBe(true)
     expect(defaultConfig.groups).toEqual([])
-    expect(defaultConfig.noTitlePlugins).toContain('dsh-better-sidebar')
     expect(defaultConfig.lastMember).toBe('')
     expect(defaultConfig.ungroupedOrder).toEqual([])
     expect(defaultConfig.navOrder).toEqual([])
     expect(defaultConfig.pluginExists).toEqual({})
+    expect(defaultConfig.optToggles).toEqual({})
+    expect(defaultConfig.optValues).toEqual({})
   })
 
   it('词条双语键集一致（§8 公约）', () => {
