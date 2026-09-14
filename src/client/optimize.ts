@@ -22,6 +22,8 @@ export interface OptimizeDef {
   id: string
   /** 分组：dsh 界面 / 第三方插件 */
   group: OptimizeGroup
+  /** dsh 组子区（如 'rightbar' → 「dsh 界面-右侧边栏」；缺省 = dsh 一般区） */
+  dshSection?: string
   /** 目标插件包名（plugin 组必填）：按此分组 + 已装检测 */
   target?: string
   /** 启用检测：该插件的 settings.section entry id（存在 = 插件已启用；缺省仅按已装判定） */
@@ -36,30 +38,83 @@ export interface OptimizeDef {
   css?: string
   /** 启用时挂载的 JS 效果键（optimize-effects.ts 的 JS_EFFECTS 注册表） */
   jsEffect?: string
-  /** 滑块数值默认值（存在即表示该项带滑块配置；值存 config.optValues[id]） */
+  /** 数值默认值（存在即表示该项带数值配置；滑块或选项组，值存 config.optValues[id]） */
   defaultValue?: number
-  /** 值驱动 CSS 生成器（与 css 二选一）：按当前数值生成注入样式，滑块拖动即时生效 */
+  /** 滑块上限（缺省 100） */
+  maxValue?: number
+  /** 数字输入框（无上限数值如层级；缺省为滑块） */
+  numberInput?: boolean
+  /** 数值行左侧标签词条 key（缺省 opt.value.transparency） */
+  valueLabelKey?: string
+  /** 选项组（如峰值时段颜色 warn/danger/error）：存在时该项渲染为分段选择而非滑块 */
+  choices?: { value: string; labelKey: string }[]
+  /** 选项组左侧标签词条 key（choices 存在时） */
+  choiceLabelKey?: string
+  /** 值驱动 CSS 生成器：按当前数值生成注入样式（滑块 = 0-100；选项组 = 所选下标） */
   cssValue?: (value: number) => string
 }
 
 /** 已知插件的面板标题词条 key（缺省 = 面板直接显示包名）。 */
 const PLUGIN_TITLE_KEYS: Record<string, string> = {
   'dsh-better-sidebar': 'opt.plugin.title.betterSidebar',
+  'dsh-cost-meter': 'opt.plugin.title.costMeter',
 }
 
-/** 插件组 CSS（只引用各插件自身的 data-dsh-* 稳定标记） */
+/** 已知插件的仓库主页（面板名称可点击跳转）。 */
+const PLUGIN_URLS: Record<string, string> = {
+  'dsh-better-sidebar': 'https://github.com/omdsh-dev/DSH-better-sidebar',
+  'dsh-cost-meter': 'https://github.com/Han-1413141/dsh-cost-meter',
+}
+
+/** 插件组 CSS（只引用各插件自身的稳定标记） */
 const CSS = {
   betterSidebarHideBottomToggle: [
     // dsh-better-sidebar 底部面板的展开/收起切换钮
     '[data-dsh-bottom-toggle]{display:none!important}',
   ].join(''),
+  costMeterPeakValley: [
+    // 峰谷计价：周末标记/标签 → business 语义色
+    '.cm-peak-strip.weekend .cm-peak-chip,.cm-peak-classic.weekend .cm-peak-classic-chip,.cm-peak-rail.weekend .cm-peak-rail-label,.cm-peak-rail-classic.weekend .cm-peak-rail-classic-label{color:var(--dsw-alias-state-business-primary)}',
+    // 标记：无背景无边框无阴影（classic / rail-classic / peak / rail）；经典标记周末 border-color 归 none
+    '.cm-peak-classic-marker{background:none;border:none;box-shadow:none}',
+    '.cm-peak-rail-classic-marker{background:none;border:none;box-shadow:none}',
+    '.cm-peak-marker,.cm-peak-rail-marker{background:none;box-shadow:none}',
+    '.cm-peak-classic.weekend .cm-peak-classic-marker{border-color:none}',
+    // 周末标记 :after 三角 → business；tooltip 文案 → label-primary；classic tooltip 背景 → 侧栏填充色
+    '.cm-peak-classic.weekend .cm-peak-classic-marker:after{border-top-color:var(--dsw-alias-state-business-primary)}',
+    '.cm-footer-stack span[role="tooltip"]{color:var(--dsw-alias-label-primary)}',
+    '.cm-footer-stack span[role="tooltip"]{background:var(--dsw-specific-sidebar-fill)}',
+  ].join(''),
+}
+/** 峰值时段颜色选项（可配置：warn / danger / error）→ 各峰段元素 */
+const PEAK_HIGH_TOKENS = ['warn', 'danger', 'error'] as const
+function costMeterPeakHighCss(v: number): string {
+  const token = PEAK_HIGH_TOKENS[Math.max(0, Math.min(2, Math.round(v)))] ?? 'error'
+  const color = 'var(--dsw-alias-state-' + token + '-primary)'
+  return (
+    '.cm-peak-classic-marker:after{border-top:6px solid ' + color + '}' +
+    '.cm-peak-high{background:' + color + '}' +
+    '.cm-peak-rail-high{background:' + color + '}' +
+    '.cm-peak-rail-classic-segment.peak{background:' + color + '}' +
+    '.cm-peak-strip.peak .cm-peak-chip,.cm-peak-classic.peak .cm-peak-classic-chip,.cm-peak-rail.peak .cm-peak-rail-label,.cm-peak-rail-classic.peak .cm-peak-rail-classic-label{color:' + color + '}'
+  )
 }
 
 /** 全量注册表（注册序 = 展示序；dsh 组在前、插件组在后）。 */
 export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
   {
+    id: 'dsh.rootBorderBox',
+    group: 'dsh',
+    defaultOn: true, // 默认生效
+    nameKey: 'opt.dsh.rootBorderBox',
+    descKey: 'opt.dsh.rootBorderBox.desc',
+    // 主题根元素设为 border-box（置于 dsh 组最前）
+    css: '#root{box-sizing:border-box!important}',
+  },
+  {
     id: 'dsh.rightbarFullscreenZeroTrack',
     group: 'dsh',
+    dshSection: 'rightbar',
     nameKey: 'opt.dsh.rightbarFullscreenZeroTrack',
     descKey: 'opt.dsh.rightbarFullscreenZeroTrack.desc',
     jsEffect: 'rightbarFullscreenZeroTrack',
@@ -67,6 +122,7 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
   {
     id: 'dsh.rightbarFullscreenBgAlpha',
     group: 'dsh',
+    dshSection: 'rightbar',
     nameKey: 'opt.dsh.rightbarFullscreenBgAlpha',
     descKey: 'opt.dsh.rightbarFullscreenBgAlpha.desc',
     // 透明度语义：数值越大越透明（0 = 完全不透明，100 = 全透明）；默认 25 → alpha 75%
@@ -79,11 +135,119 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
   {
     id: 'dsh.rightbarFullscreenHideHeaderUtilities',
     group: 'dsh',
+    dshSection: 'rightbar',
     nameKey: 'opt.dsh.rightbarFullscreenHideHeaderUtilities',
     descKey: 'opt.dsh.rightbarFullscreenHideHeaderUtilities.desc',
     // 右栏全屏（frame 带 data-rightbar-fullscreen）时隐藏正文头部工具区；
     // wSkVaW_headerUtilities 为官方对话头 hash 类名（随 dsh 版本可能变化，按需求指定）
     css: '[data-rightbar-fullscreen] .wSkVaW_headerUtilities{display:none!important}',
+  },
+  {
+    id: 'dsh.rightbarFullscreenZIndex',
+    group: 'dsh',
+    dshSection: 'rightbar',
+    nameKey: 'opt.dsh.rightbarFullscreenZIndex',
+    descKey: 'opt.dsh.rightbarFullscreenZIndex.desc',
+    // 右侧边栏全屏面板层级：数字输入框（无上限），默认 41
+    defaultValue: 41,
+    numberInput: true,
+    valueLabelKey: 'opt.value.zIndex',
+    cssValue: (v) => '[data-sidebar-right-panel="fullscreen"]{z-index:' + Math.round(v) + '!important}',
+  },
+  {
+    id: 'dsh.rightbarFullscreenPadding',
+    group: 'dsh',
+    dshSection: 'rightbar',
+    nameKey: 'opt.dsh.rightbarFullscreenPadding',
+    descKey: 'opt.dsh.rightbarFullscreenPadding.desc',
+    // 全屏面板内边距继承 #root + 叠加正文头部 padding-top（变化触发，不常驻监听）
+    jsEffect: 'rightbarFullscreenPadding',
+  },
+  {
+    id: 'dsh.rightbarFullscreenEscapeClose',
+    group: 'dsh',
+    dshSection: 'rightbar',
+    nameKey: 'opt.dsh.rightbarFullscreenEscapeClose',
+    descKey: 'opt.dsh.rightbarFullscreenEscapeClose.desc',
+    // 右侧边栏全屏时按 ESC 收起侧边栏（模拟点击官方「收起右侧边栏」按钮）
+    jsEffect: 'rightbarFullscreenEscapeClose',
+  },
+  {
+    id: 'dsh.rightbarTabOpen',
+    group: 'dsh',
+    dshSection: 'rightbar',
+    nameKey: 'opt.dsh.rightbarTabOpen',
+    descKey: 'opt.dsh.rightbarTabOpen.desc',
+    // 右侧边栏未打开时按 TAB 打开（模拟点击官方「打开右侧边栏」按钮）
+    jsEffect: 'rightbarTabOpen',
+  },
+  {
+    id: 'dsh.rightbarDefaultFullscreen',
+    group: 'dsh',
+    dshSection: 'rightbar',
+    nameKey: 'opt.dsh.rightbarDefaultFullscreen',
+    descKey: 'opt.dsh.rightbarDefaultFullscreen.desc',
+    // 打开右侧边栏时默认进入全屏（仅打开瞬间触发一次；手动退出全屏后不强制）
+    jsEffect: 'rightbarDefaultFullscreen',
+  },
+  {
+    id: 'dsh.leftbarBgUnify',
+    group: 'dsh',
+    dshSection: 'leftbar',
+    nameKey: 'opt.dsh.leftbarBgUnify',
+    descKey: 'opt.dsh.leftbarBgUnify.desc',
+    // 背景颜色统一化：单一控制源（布局层 pI_x6G_sidebarCol / 模块层 hHd-Xa_root）。
+    // 选中其一 → 另一层 background 强制 none！important
+    defaultValue: 0, // 布局层
+    choices: [
+      { value: 'layout', labelKey: 'opt.dsh.leftbarBgUnify.option.layout' },
+      { value: 'module', labelKey: 'opt.dsh.leftbarBgUnify.option.module' },
+    ],
+    choiceLabelKey: 'opt.dsh.leftbarBgUnify.target',
+    cssValue: (v) =>
+      v === 1 ? '.pI_x6G_sidebarCol{background:none!important}' : '.hHd-Xa_root{background:none!important}',
+  },
+  {
+    id: 'dsh.leftbarBgAlpha',
+    group: 'dsh',
+    dshSection: 'leftbar',
+    nameKey: 'opt.dsh.leftbarBgAlpha',
+    descKey: 'opt.dsh.leftbarBgAlpha.desc',
+    // 背景透明度：侧栏填充色去除原有 alpha，并按设置混合（透明度数值越大越透明；默认 25 → alpha 75%）
+    defaultValue: 25,
+    valueLabelKey: 'opt.value.transparency',
+    cssValue: (v) =>
+      '.pI_x6G_sidebarCol,.hHd-Xa_root{background:rgb(from var(--dsw-specific-sidebar-fill) r g b / ' +
+      (100 - Math.max(0, Math.min(100, Math.round(v)))) / 100 +
+      ')}',
+  },
+  {
+    id: 'dsh.hoverCardTheme',
+    group: 'dsh',
+    dshSection: 'leftbar',
+    nameKey: 'opt.dsh.hoverCardTheme',
+    descKey: 'opt.dsh.hoverCardTheme.desc',
+    // 会话悬停卡（复制卡，dsh-client-ui-workspace）：官方硬编码 #2C2C2E 背景 + #fff/#cfd3d6/#adb2b8 文字
+    // 全部改为主题语义色，可被皮肤控制。选择器用稳定信号 role=button + aria-label^=「复制:/Copy:」
+    // （hash 类 YDXeBa_*/_card_1b2ny_* 不稳定）；状态点用 data-state + currentColor（已主题化），用 :not([data-state]) 排除。
+    css: [
+      '[role="button"][aria-label^="复制:"],[role="button"][aria-label^="Copy:"]{--dsw-hovercard-bg:var(--dsw-alias-bg-layer-2)!important}',
+      '[role="button"][aria-label^="复制:"]>div>div:first-child,[role="button"][aria-label^="Copy:"]>div>div:first-child{color:var(--dsw-alias-label-primary)!important}',
+      '[role="button"][aria-label^="复制:"] div,[role="button"][aria-label^="Copy:"] div,[role="button"][aria-label^="复制:"] span:not([data-state]),[role="button"][aria-label^="Copy:"] span:not([data-state]){color:var(--dsw-alias-label-secondary)!important}',
+    ].join(''),
+  },
+  {
+    id: 'dsh.mdTableMaxWidth',
+    group: 'dsh',
+    nameKey: 'opt.dsh.mdTableMaxWidth',
+    descKey: 'opt.dsh.mdTableMaxWidth.desc',
+    // 正文 Markdown 表格限制最大宽度 100%，横向滚动条常驻（便于发现可滚动）。
+    // 官方规则为 .hWmORq_body .md-table-wide（双类，特异性更高且 hash 类名不可依赖），
+    // 关键属性用 !important 覆盖官方 max-width:none / 负 margin / padding 撑宽
+    // 正文 Markdown 表格限制最大宽度 100%，滚动条常驻。
+    // 必须的修正：!important 压过官方 .hWmORq_body .md-table-wide / ._tableScroll_kcgor_190.md-table-wide
+    // （官方 max-width:none / 负 margin / padding-bottom:var(--dsh-scrollbar-width,8px) 预留）
+    css: '.md-table-wide{max-width:100%!important;margin-left:0!important;padding-left:0!important;overflow:scroll}',
   },
   {
     id: 'betterSidebar.hideBottomToggle',
@@ -94,6 +258,25 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     nameKey: 'opt.plugin.betterSidebar.hideBottomToggle',
     descKey: 'opt.plugin.betterSidebar.hideBottomToggle.desc',
     css: CSS.betterSidebarHideBottomToggle,
+  },
+  {
+    id: 'costMeter.peakValleyTheme',
+    group: 'plugin',
+    target: 'dsh-cost-meter',
+    // 启用信号：插件启用时注册 settings.section 条目 id 'cost-meter'
+    sectionId: 'cost-meter',
+    nameKey: 'opt.plugin.costMeter.peakValleyTheme',
+    descKey: 'opt.plugin.costMeter.peakValleyTheme.desc',
+    // 峰值时段颜色选项（0=warn 1=danger 2=error）；默认 error
+    defaultValue: 2,
+    choices: [
+      { value: 'warn', labelKey: 'opt.plugin.costMeter.peakValleyTheme.peak.warn' },
+      { value: 'danger', labelKey: 'opt.plugin.costMeter.peakValleyTheme.peak.danger' },
+      { value: 'error', labelKey: 'opt.plugin.costMeter.peakValleyTheme.peak.error' },
+    ],
+    choiceLabelKey: 'opt.plugin.costMeter.peakValleyTheme.peak',
+    css: CSS.costMeterPeakValley,
+    cssValue: costMeterPeakHighCss,
   },
 ]
 
@@ -113,6 +296,8 @@ interface OptimizePluginGroup {
   plugin: string
   /** 面板标题词条 key（缺省 = 直接显示包名） */
   titleKey?: string
+  /** 插件仓库主页（面板名称可点击跳转；缺省无链接） */
+  url?: string
   defs: readonly OptimizeDef[]
 }
 
@@ -133,6 +318,7 @@ export function optimizePluginGroups(): readonly OptimizePluginGroup[] {
   return order.map((plugin) => ({
     plugin,
     titleKey: PLUGIN_TITLE_KEYS[plugin],
+    url: PLUGIN_URLS[plugin],
     defs: map.get(plugin) ?? [],
   }))
 }
@@ -177,7 +363,9 @@ export function optimizeValue(
   if (!def || def.defaultValue === undefined) return undefined
   const values = config?.optValues
   const raw = values && typeof values === 'object' && id in values ? values[id] : undefined
-  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.min(100, raw))
+  // 数字输入框无上限；滑块按 maxValue（缺省 100）钳制
+  const max = def.numberInput ? Number.MAX_SAFE_INTEGER : def.maxValue ?? 100
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.min(max, raw))
   return def.defaultValue
 }
 
@@ -188,8 +376,7 @@ export function validateOptimizeRegistry(defs: readonly OptimizeDef[] = OPTIMIZE
   for (const def of defs) {
     if (!def.id || seen.has(def.id)) errors.push('duplicate/empty id: ' + def.id)
     seen.add(def.id)
-    const hasCss = (def.css !== undefined && def.css.trim().length > 0) || typeof def.cssValue === 'function'
-    if (!hasCss && !def.jsEffect) errors.push('empty css/cssValue/jsEffect: ' + def.id)
+    // 允许「待实现」def：无 css/cssValue/jsEffect 的占位设置项（开关已持久化，效果后续补齐）
     if (typeof def.cssValue === 'function' && def.defaultValue === undefined) {
       errors.push('cssValue without defaultValue: ' + def.id)
     }

@@ -105,7 +105,7 @@ function OptimizeRow(props: {
  * 用本地乐观草稿值避免「受控值 → 设置 RPC 往返」把滑块回拉（跟手慢）；
  * 写入防抖 120ms，松手/失焦立即提交（背景等效果即时生效）。
  */
-function SliderRow(props: { label: string; value: number; onChange: (v: number) => void }) {
+function SliderRow(props: { label: string; value: number; max?: number; onChange: (v: number) => void }) {
   const [draft, setDraft] = useState(props.value)
   const draggingRef = useRef(false)
   const latestRef = useRef(props.value)
@@ -133,7 +133,7 @@ function SliderRow(props: { label: string; value: number; onChange: (v: number) 
       <input
         type="range"
         min={0}
-        max={100}
+        max={props.max ?? 100}
         step={1}
         value={draft}
         onChange={(e) => {
@@ -158,7 +158,81 @@ function SliderRow(props: { label: string; value: number; onChange: (v: number) 
   )
 }
 
-/** 优化项区块：开关行 + （可选的）滑块行。 */
+/** 数字输入框行（无上限数值如层级；本地草稿防回拉，防抖 200ms + 失焦/Enter 提交）。 */
+function NumberInputRow(props: { label: string; value: number; onChange: (v: number) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [draft, setDraft] = useState(String(props.value))
+  const draftRef = useRef(String(props.value))
+  const timerRef = useRef(0)
+
+  useEffect(() => {
+    if (inputRef.current !== document.activeElement) setDraft(String(props.value))
+  }, [props.value])
+
+  const flush = (): void => {
+    window.clearTimeout(timerRef.current)
+    timerRef.current = 0
+    const n = Math.max(0, Math.round(Number(draftRef.current)))
+    if (Number.isFinite(n) && draftRef.current.trim() !== '') props.onChange(n)
+    else setDraft(String(props.value))
+  }
+  const schedule = (v: string): void => {
+    draftRef.current = v
+    setDraft(v)
+    window.clearTimeout(timerRef.current)
+    timerRef.current = window.setTimeout(flush, 200)
+  }
+
+  return (
+    <div className="mgs-opt-slider">
+      <span className="mgs-opt-slider-label">{props.label}</span>
+      <input
+        ref={inputRef}
+        type="number"
+        min={0}
+        step={1}
+        className="mgs-opt-number"
+        value={draft}
+        onChange={(e) => schedule(e.target.value)}
+        onBlur={flush}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') flush()
+        }}
+      />
+    </div>
+  )
+}
+
+/** 选项组行（分段选择，如峰值时段颜色 warn/danger/error）。 */
+function ChoiceRow(props: {
+  label: string
+  choices: readonly { value: string; labelKey: string }[]
+  value: number
+  t: (key: string) => string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="mgs-opt-slider">
+      <span className="mgs-opt-slider-label">{props.label}</span>
+      <div className="mgs-seg" role="radiogroup">
+        {props.choices.map((c, i) => (
+          <button
+            key={c.value}
+            type="button"
+            role="radio"
+            aria-checked={i === props.value}
+            className={i === props.value ? 'mgs-seg-item mgs-seg-active' : 'mgs-seg-item'}
+            onClick={() => props.onChange(i)}
+          >
+            {props.t(c.labelKey)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 优化项区块：开关行 + （可选的）滑块行 / 选项组行。 */
 function DefBlock(props: {
   def: OptimizeDef
   enabled: boolean
@@ -172,9 +246,81 @@ function DefBlock(props: {
     <>
       <OptimizeRow def={def} enabled={props.enabled} t={props.t} onToggle={props.onToggle} />
       {props.value !== undefined ? (
-        <SliderRow label={props.t('opt.value.transparency')} value={props.value} onChange={props.onValue} />
+        def.choices && def.choices.length > 0 ? (
+          <ChoiceRow
+            label={props.t(def.choiceLabelKey ?? 'opt.value.transparency')}
+            choices={def.choices}
+            value={props.value}
+            t={props.t}
+            onChange={props.onValue}
+          />
+        ) : def.numberInput ? (
+          <NumberInputRow
+            label={props.t(def.valueLabelKey ?? 'opt.value.transparency')}
+            value={props.value}
+            onChange={props.onValue}
+          />
+        ) : (
+          <SliderRow
+            label={props.t(def.valueLabelKey ?? 'opt.value.transparency')}
+            value={props.value}
+            max={def.maxValue}
+            onChange={props.onValue}
+          />
+        )
       ) : null}
     </>
+  )
+}
+
+/** 可折叠面板：默认折叠；点击头部展开/收起（头部为 role=button，内部可容纳跳转按钮）。 */
+function CollapsiblePanel(props: { title: ReactNode; extra?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mgs-panel">
+      <div
+        role="button"
+        tabIndex={0}
+        className="mgs-opt-panel-head"
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setOpen((o) => !o)
+          }
+        }}
+        aria-expanded={open}
+      >
+        <span className="mgs-panel__title">{props.title}</span>
+        {props.extra}
+        <span className={'mgs-opt-chevron' + (open ? ' mgs-opt-chevron--open' : '')} aria-hidden="true">
+          ›
+        </span>
+      </div>
+      {open ? <div className="mgs-panel__body">{props.children}</div> : null}
+    </div>
+  )
+}
+
+/** 仓库跳转按钮（点击才跳转；不触发展开/收起）。 */
+function LinkButton(props: { url: string }) {
+  return (
+    <button
+      type="button"
+      className="mgs-opt-link-btn"
+      title="GitHub"
+      aria-label="GitHub"
+      onClick={(e) => {
+        e.stopPropagation()
+        window.open(props.url, '_blank', 'noreferrer')
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6.5 3.5H3.5v9h9V9.5" />
+        <path d="M8.5 7.5L13 3" />
+        <path d="M9.5 3h3.5v3.5" />
+      </svg>
+    </button>
   )
 }
 
@@ -216,28 +362,50 @@ export function OptimizeCenter(props: OptimizeCenterProps) {
     (g) => versions[g.plugin] !== undefined && g.defs.every((d) => optimizeSectionEnabled(activeSections, d)),
   )
 
-  // dsh 界面组（恒显示；空则不渲染）
+  // 布局：无控件的开关项排前，带控件（滑块/数字框/选项组）的排后，视觉更整齐
+  const hasControl = (d: OptimizeDef): boolean => d.defaultValue !== undefined
+  const sortDefs = (defs: readonly OptimizeDef[]): OptimizeDef[] =>
+    [...defs].sort((a, b) => Number(hasControl(a)) - Number(hasControl(b)))
+
+  // dsh 界面组（恒显示；空则不渲染）：一般区 + 左侧边栏 + 右侧边栏子区
   const dshDefs = optimizeByGroup('dsh')
+  const dshGeneral = sortDefs(dshDefs.filter((d) => !d.dshSection))
+  const dshLeftbar = sortDefs(dshDefs.filter((d) => d.dshSection === 'leftbar'))
+  const dshRightbar = sortDefs(dshDefs.filter((d) => d.dshSection === 'rightbar'))
 
   return (
     // 成员页：宿主（SettingsCenter/折叠壳）已在外层渲染徽章头与返回键，这里只渲染内容面板
     <div className="mgs-opt-page" data-mega-settings-root>
       {dshDefs.length > 0 ? (
-        <div className="mgs-panel">
-          <div className="mgs-panel__head">
-            <span className="mgs-panel__title">{tr('opt.group.dsh')}</span>
-          </div>
-          {dshDefs.map((def) => renderDef(def))}
-        </div>
+        <CollapsiblePanel title={tr('opt.group.dsh')}>
+          {dshGeneral.map((def) => renderDef(def))}
+          {dshLeftbar.length > 0 ? (
+            <>
+              <div className="mgs-opt-subhead">{tr('opt.group.dshLeftbar')}</div>
+              {dshLeftbar.map((def) => renderDef(def))}
+            </>
+          ) : null}
+          {dshRightbar.length > 0 ? (
+            <>
+              <div className="mgs-opt-subhead">{tr('opt.group.dshRightbar')}</div>
+              {dshRightbar.map((def) => renderDef(def))}
+            </>
+          ) : null}
+        </CollapsiblePanel>
       ) : null}
       {pluginPanels.map((g) => (
-        <div className="mgs-panel" key={g.plugin}>
-          <div className="mgs-panel__head">
-            <span className="mgs-panel__title">{tr(g.titleKey ?? g.plugin)}</span>
-            {versions[g.plugin] ? <span className="mgs-opt-target">{versions[g.plugin]}</span> : null}
-          </div>
-          {g.defs.map((def) => renderDef(def))}
-        </div>
+        <CollapsiblePanel
+          key={g.plugin}
+          title={tr(g.titleKey ?? g.plugin)}
+          extra={
+            <>
+              {versions[g.plugin] ? <span className="mgs-opt-target">{versions[g.plugin]}</span> : null}
+              {g.url ? <LinkButton url={g.url} /> : null}
+            </>
+          }
+        >
+          {sortDefs(g.defs).map((def) => renderDef(def))}
+        </CollapsiblePanel>
       ))}
       <p className="mgs-hint">{tr('opt.restart.hint')}</p>
     </div>

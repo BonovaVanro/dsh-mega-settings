@@ -549,17 +549,20 @@
   gap: 1px;
 }
 .mgs-opt-name {
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-weight: 700;
 }
 .mgs-opt-desc {
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 10px;
+  line-height: 15px;
 }
 .mgs-opt-target {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-secondary);
@@ -596,4 +599,114 @@
   color: var(--dsw-alias-label-primary);
   min-width: 36px;
   text-align: right;
+}
+
+/* 插件仓库跳转按钮（名称旁小按钮，点击才跳转）；贴近名称 + 光学下沉对齐文字视觉中心 */
+.mgs-opt-link-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 1px 0 0 -3px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+.mgs-opt-link-btn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* 数字输入框行（无上限数值如层级）；原生 spinner 非主题化 → 隐藏，控件整体走语义令牌 */
+.mgs-opt-number {
+  box-sizing: border-box;
+  width: 96px;
+  padding: 4px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; /* Firefox 隐藏 spinner */
+}
+.mgs-opt-number::-webkit-outer-spin-button,
+.mgs-opt-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.mgs-opt-number:hover {
+  border-color: var(--dsw-alias-border-l1);
+}
+.mgs-opt-number:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary) 25%, transparent);
+}
+.mgs-opt-number::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* dsh 面板子区标题（如「右侧边栏」+ 延伸到边缘的分隔线） */
+.mgs-opt-subhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+.mgs-opt-subhead::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dsw-alias-border-l2);
+}
+
+/* 可折叠面板头：默认折叠，点击展开；全宽覆盖面板左右 padding（点 padding 处也能触发）。
+   自包含（不再叠加共享的 .mgs-panel__head，避免影响收纳中心等其他使用者） */
+.mgs-opt-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: calc(100% + 32px);
+  margin: 0 -16px;
+  min-height: 24px;
+  padding: 0 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.mgs-opt-panel-head:hover .mgs-panel__title {
+  color: var(--dsw-alias-brand-primary);
+}
+.mgs-opt-chevron {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: auto; /* 折叠箭头恒右对齐 */
+  font-size: 12px;
+  line-height: 1;
+  color: var(--dsw-alias-label-tertiary);
+  transition: transform 160ms ease;
+}
+.mgs-opt-chevron--open {
+  transform: rotate(90deg);
+}
+.mgs-panel__body {
+  display: flex;
+  flex-direction: column;
 }

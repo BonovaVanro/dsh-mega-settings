@@ -89,19 +89,19 @@ Three sources are supported: npm, GitHub tag, and local package.
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.1
 ```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.1
 ```
 
 **Local package**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.1.tgz
 ```
 
 ## Getting started

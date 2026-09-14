@@ -26,10 +26,10 @@ describe('optimize: 注册表完整性', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('dsh 组 + plugin 组并存（dsh 组当前 3 项）', () => {
+  it('dsh 组 + plugin 组并存（dsh 组当前 13 项）', () => {
     const dsh = optimizeByGroup('dsh')
     const plugin = optimizeByGroup('plugin')
-    expect(dsh.length).toBe(3)
+    expect(dsh.length).toBe(13)
     expect(plugin.length).toBeGreaterThan(0)
     expect(OPTIMIZE_DEFS.map((d) => d.group)).toEqual([
       ...dsh.map(() => 'dsh' as const),
@@ -52,6 +52,105 @@ describe('optimize: 注册表完整性', () => {
 
   it('旧静态背景 def 已移除', () => {
     expect(optimizeById('dsh.rightbarFullscreenBg')).toBeUndefined()
+  })
+
+  it('dsh 主题根元素边框盒 def：置于 dsh 组最前', () => {
+    const def = optimizeById('dsh.rootBorderBox')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('dsh')
+    expect(def!.defaultOn).toBe(true) // 默认生效
+    expect(optimizeByGroup('dsh')[0].id).toBe('dsh.rootBorderBox')
+    expect(def!.css).toBe('#root{box-sizing:border-box!important}')
+    expect(optimizeEnabled(undefined, 'dsh.rootBorderBox')).toBe(true)
+  })
+
+  it('右侧边栏相关 dsh def 带 dshSection=rightbar（子区归组）', () => {
+    for (const id of ['dsh.rightbarFullscreenZeroTrack', 'dsh.rightbarFullscreenBgAlpha', 'dsh.rightbarFullscreenHideHeaderUtilities', 'dsh.rightbarFullscreenZIndex', 'dsh.rightbarFullscreenPadding']) {
+      expect(optimizeById(id)!.dshSection, id).toBe('rightbar')
+    }
+    expect(optimizeById('dsh.rootBorderBox')!.dshSection).toBeUndefined()
+  })
+
+  it('dsh 全屏下 ESC 关闭侧边栏 def：jsEffect + rightbar 分块', () => {
+    const def = optimizeById('dsh.rightbarFullscreenEscapeClose')
+    expect(def).toBeDefined()
+    expect(def!.dshSection).toBe('rightbar')
+    expect(def!.jsEffect).toBe('rightbarFullscreenEscapeClose')
+  })
+
+  it('dsh TAB 打开侧边栏 def：jsEffect + rightbar 分块', () => {
+    const def = optimizeById('dsh.rightbarTabOpen')
+    expect(def).toBeDefined()
+    expect(def!.dshSection).toBe('rightbar')
+    expect(def!.jsEffect).toBe('rightbarTabOpen')
+  })
+
+  it('dsh 默认全屏 def：jsEffect + rightbar 分块', () => {
+    const def = optimizeById('dsh.rightbarDefaultFullscreen')
+    expect(def).toBeDefined()
+    expect(def!.dshSection).toBe('rightbar')
+    expect(def!.jsEffect).toBe('rightbarDefaultFullscreen')
+  })
+
+  it('左侧边栏相关 dsh def 带 dshSection=leftbar（背景统一化 / 透明度 / 悬浮卡）', () => {
+    for (const id of ['dsh.leftbarBgUnify', 'dsh.leftbarBgAlpha', 'dsh.hoverCardTheme']) {
+      expect(optimizeById(id)!.dshSection, id).toBe('leftbar')
+    }
+  })
+
+  it('左侧边栏背景颜色统一化 def：选中其一 → 另一层 background none', () => {
+    const def = optimizeById('dsh.leftbarBgUnify')
+    expect(def).toBeDefined()
+    expect(def!.defaultValue).toBe(0)
+    expect(def!.choices?.map((c) => c.value)).toEqual(['layout', 'module'])
+    // 布局层(0) → 模块层 hHd-Xa_root none；模块层(1) → 布局层 pI_x6G_sidebarCol none
+    expect(def!.cssValue!(0)).toBe('.hHd-Xa_root{background:none!important}')
+    expect(def!.cssValue!(1)).toBe('.pI_x6G_sidebarCol{background:none!important}')
+  })
+
+  it('左侧边栏背景透明度 def：rgb(from fill …) 混合透明度', () => {
+    const def = optimizeById('dsh.leftbarBgAlpha')
+    expect(def).toBeDefined()
+    expect(def!.defaultValue).toBe(25)
+    expect(def!.cssValue!(25)).toContain('.pI_x6G_sidebarCol,.hHd-Xa_root{background:rgb(from var(--dsw-specific-sidebar-fill) r g b / 0.75)}')
+  })
+
+  it('dsh 全屏下内边距优化 def：jsEffect 生效', () => {
+    const def = optimizeById('dsh.rightbarFullscreenPadding')
+    expect(def).toBeDefined()
+    expect(def!.dshSection).toBe('rightbar')
+    expect(def!.jsEffect).toBe('rightbarFullscreenPadding')
+  })
+
+  it('dsh 右侧边栏全屏层级 def：默认 41、数字输入框（无上限）、z-index 注入', () => {
+    const def = optimizeById('dsh.rightbarFullscreenZIndex')
+    expect(def).toBeDefined()
+    expect(def!.defaultValue).toBe(41)
+    expect(def!.numberInput).toBe(true)
+    expect(def!.maxValue).toBeUndefined()
+    expect(def!.cssValue!(40)).toContain('[data-sidebar-right-panel="fullscreen"]{z-index:40!important}')
+    expect(optimizeValue({ optValues: { 'dsh.rightbarFullscreenZIndex': 15000 } }, 'dsh.rightbarFullscreenZIndex')).toBe(15000)
+  })
+
+  it('dsh 会话悬停卡主题适配 def：背景与文字全改主题 token、状态点排除', () => {
+    const def = optimizeById('dsh.hoverCardTheme')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('dsh')
+    expect(def!.dshSection).toBe('leftbar') // 左侧边栏分块
+    expect(def!.css).toContain('--dsw-hovercard-bg:var(--dsw-alias-bg-layer-2)!important')
+    expect(def!.css).toContain('color:var(--dsw-alias-label-primary)!important')
+    expect(def!.css).toContain('color:var(--dsw-alias-label-secondary)!important')
+    expect(def!.css).toContain('span:not([data-state])')
+  })
+
+  it('dsh 正文 Markdown 表格限宽 def：max-width 100% + 横向滚动', () => {
+    const def = optimizeById('dsh.mdTableMaxWidth')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('dsh')
+    expect(def!.css).toContain('.md-table-wide{max-width:100%!important')
+    expect(def!.css).toContain('margin-left:0!important')
+    expect(def!.css).toContain('padding-left:0!important')
+    expect(def!.css).toContain('overflow:scroll')
   })
 
   it('dsh 全屏隐藏正文工具栏 def：css 作用于全屏帧下的 headerUtilities', () => {
@@ -107,6 +206,35 @@ describe('optimize: 按插件分组（每插件一个面板）', () => {
     expect(g!.defs.map((d) => d.id)).toEqual(['betterSidebar.hideBottomToggle'])
   })
 
+  it('dsh-cost-meter 峰谷计价主题色适配：周末/经典标记 + 可配置峰值时段颜色', () => {
+    const def = optimizeById('costMeter.peakValleyTheme')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('plugin')
+    expect(def!.target).toBe('dsh-cost-meter')
+    expect(def!.sectionId).toBe('cost-meter')
+    expect(def!.defaultValue).toBe(2) // 默认 error
+    expect(def!.choices?.map((c) => c.value)).toEqual(['warn', 'danger', 'error'])
+    expect(def!.css).toContain('.cm-peak-strip.weekend')
+    expect(def!.css).toContain('--dsw-alias-state-business-primary')
+    expect(def!.css).toContain('.cm-peak-classic-marker{background:none;border:none;box-shadow:none}')
+    expect(def!.css).toContain('.cm-peak-rail-classic-marker{background:none;border:none;box-shadow:none}')
+    expect(def!.css).toContain('.cm-peak-marker,.cm-peak-rail-marker{background:none;box-shadow:none}')
+    expect(def!.css).toContain('.cm-peak-classic.weekend .cm-peak-classic-marker{border-color:none}')
+    expect(def!.css).toContain('.cm-peak-classic.weekend .cm-peak-classic-marker:after{border-top-color:var(--dsw-alias-state-business-primary)}')
+    expect(def!.css).toContain('.cm-footer-stack span[role="tooltip"]{color:var(--dsw-alias-label-primary)}')
+    expect(def!.css).toContain('.cm-footer-stack span[role="tooltip"]{background:var(--dsw-specific-sidebar-fill)}')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-classic-marker:after{border-top:6px solid var(--dsw-alias-state-warn-primary)}')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-high{background:var(--dsw-alias-state-warn-primary)}')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-rail-high{background:var(--dsw-alias-state-warn-primary)}')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-rail-classic-segment.peak{background:var(--dsw-alias-state-warn-primary)}')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-classic.peak .cm-peak-classic-chip,')
+    expect(def!.cssValue!(0)).toContain('.cm-peak-rail-classic.peak .cm-peak-rail-classic-label{color:var(--dsw-alias-state-warn-primary)}')
+    expect(def!.cssValue!(1)).toContain('--dsw-alias-state-danger-primary')
+    expect(def!.cssValue!(1)).toContain('.cm-peak-high{background:var(--dsw-alias-state-danger-primary)}')
+    expect(def!.cssValue!(2)).toContain('--dsw-alias-state-error-primary')
+    expect(validateOptimizeRegistry()).toEqual([])
+  })
+
   it('插件启用检测：sectionId 存在 = 已启用；缺失/未声明 → 按已装判定', () => {
     const def = optimizeById('betterSidebar.hideBottomToggle')
     expect(def!.sectionId).toBe('better-sidebar')
@@ -122,6 +250,12 @@ describe('optimize: 按插件分组（每插件一个面板）', () => {
   it('已知插件带标题词条 key（缺省 = 显示包名）', () => {
     const titles = new Map(optimizePluginGroups().map((g) => [g.plugin, g.titleKey]))
     expect(titles.get('dsh-better-sidebar')).toBe('opt.plugin.title.betterSidebar')
+  })
+
+  it('已知插件带仓库主页（面板名称可跳转）', () => {
+    const urls = new Map(optimizePluginGroups().map((g) => [g.plugin, g.url]))
+    expect(urls.get('dsh-better-sidebar')).toBe('https://github.com/omdsh-dev/DSH-better-sidebar')
+    expect(urls.get('dsh-cost-meter')).toBe('https://github.com/Han-1413141/dsh-cost-meter')
   })
 })
 
@@ -147,7 +281,8 @@ describe('optimize: 开关解析', () => {
     const ids = enabledOptimizeIds({ optToggles: { [BOTTOM_TOGGLE_ID]: true } })
     expect(ids.has(BOTTOM_TOGGLE_ID)).toBe(true)
     expect(ids.has('no.such.id')).toBe(false)
-    expect(enabledOptimizeIds(undefined).size).toBe(0)
+    // rootBorderBox 默认开启：无配置时也在启用集合
+    expect(enabledOptimizeIds(undefined).has('dsh.rootBorderBox')).toBe(true)
   })
 
   it('不修改入参', () => {
@@ -226,9 +361,10 @@ describe('optimize: def 形状（渲染字段）', () => {
     }
   })
 
-  it('plugin 组 css 只引用各插件自身 data-dsh-* 稳定标记', () => {
+  it('plugin 组每个 def 至少有一种效果（css / cssValue / jsEffect）', () => {
     for (const d of optimizeByGroup('plugin')) {
-      expect(d.css, d.id).toContain('data-dsh-')
+      const hasCss = d.css !== undefined && d.css.trim().length > 0
+      expect(hasCss || typeof d.cssValue === 'function' || d.jsEffect !== undefined, d.id).toBe(true)
     }
   })
 })

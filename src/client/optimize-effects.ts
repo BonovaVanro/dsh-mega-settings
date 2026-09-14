@@ -121,8 +121,178 @@ function enableRightbarFullscreenZeroTrack(): () => void {
     }
   }
 }
+/**
+ * dsh：右侧边栏全屏下内边距优化。
+ * 全屏面板 padding 继承 #root 的 padding（不叠加头部 padding-top）。
+ * 仅「变化触发」：观察 #root 的 style/class 与文档子节点（面板挂载），不做常驻轮询。
+ */
+function enableRightbarFullscreenPadding(): () => void {
+  const PANEL_SEL = '[data-sidebar-right-panel]'
+  const observed = new Set<HTMLElement>()
+  const apply = (): void => {
+    const root = document.getElementById('root')
+    const panel = document.querySelector<HTMLElement>(PANEL_SEL)
+    if (root === null || panel === null) return
+    // 面板常驻挂载（全屏 ↔ push 只切属性）：首次命中即开始观察其属性，退出全屏时恢复
+    if (!observed.has(panel)) {
+      observed.add(panel)
+      mo.observe(panel, { attributes: true, attributeFilter: ['data-sidebar-right-panel'] })
+    }
+    if (panel.getAttribute('data-sidebar-right-panel') !== 'fullscreen') {
+      // 非全屏：恢复官方（移除我们写的内联 padding）
+      panel.style.removeProperty('padding')
+      panel.style.removeProperty('padding-top')
+      return
+    }
+    const rp = getComputedStyle(root)
+    panel.style.setProperty('padding', rp.paddingTop + ' ' + rp.paddingRight + ' ' + rp.paddingBottom + ' ' + rp.paddingLeft)
+  }
+  const mo = new MutationObserver(apply)
+  const root = document.getElementById('root')
+  if (root !== null) mo.observe(root, { attributes: true, attributeFilter: ['style', 'class'] })
+  // 面板挂载/结构变化（childList 变化触发，非轮询）
+  mo.observe(document.documentElement, { subtree: true, childList: true })
+  apply()
+  return () => {
+    mo.disconnect()
+    const panel = document.querySelector<HTMLElement>(PANEL_SEL)
+    if (panel !== null) {
+      panel.style.removeProperty('padding')
+      panel.style.removeProperty('padding-top')
+    }
+  }
+}
+
+/**
+ * dsh：右侧边栏全屏下 ESC 关闭侧边栏。
+ * 全屏（frame 带 data-rightbar-fullscreen）时按 ESC → 模拟点击官方「收起右侧边栏」按钮。
+ */
+function enableRightbarFullscreenEscapeClose(): () => void {
+  const COLLAPSE_LABELS = ['收起右侧边栏', 'Collapse right sidebar']
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return
+    const frame = document.querySelector<HTMLElement>('[data-rightbar-fullscreen]')
+    if (frame === null) return
+    for (const label of COLLAPSE_LABELS) {
+      const btn = document.querySelector<HTMLElement>('[aria-label="' + label + '"]')
+      if (btn !== null) {
+        e.preventDefault()
+        btn.click()
+        return
+      }
+    }
+  }
+  document.addEventListener('keydown', onKey, true)
+  return () => document.removeEventListener('keydown', onKey, true)
+}
+
+/**
+ * dsh：右侧边栏 TAB 打开。
+ * 仅「关闭状态」下挂 TAB 监听；打开/全屏/设置页弹层打开后立即移除监听（TAB 恢复焦点导航），关闭后再挂上。
+ * 状态变化由 MutationObserver 观察 data-sidebar-right-open / data-rightbar-fullscreen / 弹层增删 触发（非轮询）。
+ */
+function enableRightbarTabOpen(): () => void {
+  const EXPAND_LABELS = ['打开右侧边栏', 'Open right sidebar']
+  let listening = false
+
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Tab') return
+    for (const label of EXPAND_LABELS) {
+      const btn = document.querySelector<HTMLElement>('[aria-label="' + label + '"]')
+      if (btn !== null) {
+        e.preventDefault()
+        btn.click()
+        return
+      }
+    }
+  }
+
+  const setListening = (on: boolean): void => {
+    if (on && !listening) {
+      document.addEventListener('keydown', onKey, true)
+      listening = true
+    } else if (!on && listening) {
+      document.removeEventListener('keydown', onKey, true)
+      listening = false
+    }
+  }
+
+  const sync = (): void => {
+    const open = document.querySelector('[data-sidebar-right-open]') !== null
+    const fullscreen = document.querySelector('[data-rightbar-fullscreen]') !== null
+    const dialog = document.querySelector('[role="dialog"]') !== null // 设置页等弹层打开时也不拦截 TAB
+    setListening(!open && !fullscreen && !dialog)
+  }
+
+  const mo = new MutationObserver(sync)
+  // open/全屏 状态属性变化 + 弹层增删（childList）才触发（非轮询）
+  mo.observe(document.documentElement, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-sidebar-right-open', 'data-rightbar-fullscreen'],
+    childList: true,
+  })
+  sync()
+  return () => {
+    setListening(false)
+    mo.disconnect()
+  }
+}
+
+/**
+ * dsh：右侧边栏默认全屏。
+ * 仅「关闭 → 打开」瞬间触发一次：若未全屏则模拟点击官方「全屏」按钮进入全屏；
+ * 手动退出全屏后不再强制（用户已自主选择）。状态变化观察 data-sidebar-right-open / data-rightbar-fullscreen。
+ */
+function enableRightbarDefaultFullscreen(): () => void {
+  const TO_FS_LABELS = ['全屏', 'Fullscreen']
+  const clickToFullscreen = (): boolean => {
+    for (const label of TO_FS_LABELS) {
+      const btn = document.querySelector<HTMLElement>('[data-sidebar-right-panel] [aria-label="' + label + '"]')
+      if (btn !== null) {
+        btn.click()
+        return true
+      }
+    }
+    return false
+  }
+  let pending: number | undefined
+  const tryOpenFullscreen = (): void => {
+    if (clickToFullscreen()) return
+    if (pending === undefined) {
+      pending = window.setTimeout(() => {
+        pending = undefined
+        clickToFullscreen()
+      }, 80)
+    }
+  }
+  const initialOpen = document.querySelector('[data-sidebar-right-open]') !== null
+  let wasOpen = initialOpen // 初始已打开不强制，仅对之后的打开动作生效
+  const sync = (): void => {
+    const open = document.querySelector('[data-sidebar-right-open]') !== null
+    const fullscreen = document.querySelector('[data-rightbar-fullscreen]') !== null
+    if (open && !wasOpen && !fullscreen) tryOpenFullscreen()
+    wasOpen = open
+  }
+  const mo = new MutationObserver(sync)
+  mo.observe(document.documentElement, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-sidebar-right-open', 'data-rightbar-fullscreen'],
+  })
+  sync()
+  return () => {
+    mo.disconnect()
+    if (pending !== undefined) window.clearTimeout(pending)
+  }
+}
+
 const JS_EFFECTS: Record<string, (() => () => void) | undefined> = {
   rightbarFullscreenZeroTrack: enableRightbarFullscreenZeroTrack,
+  rightbarFullscreenPadding: enableRightbarFullscreenPadding,
+  rightbarFullscreenEscapeClose: enableRightbarFullscreenEscapeClose,
+  rightbarTabOpen: enableRightbarTabOpen,
+  rightbarDefaultFullscreen: enableRightbarDefaultFullscreen,
 }
 
 /** 当前挂载中的 JS 效果（key → disposer）。 */
@@ -181,10 +351,13 @@ export function syncOptimizeEffects(
       if (installed !== undefined && def.target !== undefined && !installed.has(def.target)) continue
       // 插件未启用（其 settings.section 条目不存在）→ 不注入
       if (activeSections !== undefined && def.sectionId && !activeSections.has(def.sectionId)) continue
-      if (def.css) wanted.set(def.id, def.css)
+      // 静态 css 与值驱动 cssValue 合并为同一标签（同一 def.id）
+      let cssText = ''
+      if (def.css) cssText += def.css
       if (typeof def.cssValue === 'function') {
-        wanted.set(def.id, def.cssValue(optimizeValue(config, def.id) ?? 0))
+        cssText += def.cssValue(optimizeValue(config, def.id) ?? 0)
       }
+      if (cssText) wanted.set(def.id, cssText)
       if (def.jsEffect && JS_EFFECTS[def.jsEffect]) wantedJs.add(def.jsEffect)
     }
     // 增/改样式标签

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.1.5-rc.2-update.1（mega 优化扩展）
+
+[中文](#cn-v0.1.5-rc.2-update.1) | [English](#en-v0.1.5-rc.2-update.1)
+
+<h3 id="cn-v0.1.5-rc.2-update.1">新增</h3>
+
+- **优化页结构**：dsh 面板划分为一般 / 左侧边栏 / 右侧边栏子区；各面板默认折叠（点击标题展开，折叠图标右对齐）；带控件的设置项自动排到面板下方；
+- **dsh 新增设置**：
+  - 主题根元素设置为边框盒（默认开启）；
+  - 正文 Markdown 表格限制最大宽度（横向滚动条常驻，!important 覆盖官方规则）；
+  - 右侧边栏全屏层级修正（数字输入框、无上限、默认 41）；
+  - 全屏下内边距优化（面板内边距继承 #root，变化触发、退出全屏即恢复）；
+  - 全屏下 ESC 关闭侧边栏、TAB 打开侧边栏（设置页打开时不拦截 TAB）、默认全屏；
+  - 左侧边栏背景颜色统一化（布局层/模块层单一控制源，选中其一另一层强制 none）、背景透明度（去除填充色原有 alpha 并混合设置透明度）；
+  - 工作区悬浮卡主题适配（硬编码背景/文字色改主题语义色，状态点排除）；
+- **dsh-cost-meter 峰谷计价主题色适配**：周末/经典标记与标签改用主题语义色；峰值时段颜色可配置（警告/危险/错误，默认错误），作用于 :after 三角、峰段背景、rail-classic 分段与 .peak 态 chip/label；tooltip 文案/背景主题化；标记去原生边框与阴影；
+- **插件面板**：面板名称旁新增 GitHub 跳转按钮（点击才跳转，不触发展开）；版本徽章紧跟名称；
+- **细节打磨**：设置名加粗（700）、字号与颜色调整；折叠图标/版本徽章垂直居中。
+
+<h3 id="en-v0.1.5-rc.2-update.1">New features</h3>
+
+- **Optimize page structure**: the dsh panel is split into general / left sidebar / right sidebar sections; panels collapse by default (click the header to expand; chevron right-aligned); settings with controls sort below plain toggles;
+- **New dsh settings**: root border-box (on by default); markdown table max-width with a persistent horizontal scrollbar (!important overrides the official rule); fullscreen z-index (number input, unlimited, default 41); fullscreen padding inheriting #root (change-triggered, restored on exit); ESC to close / TAB to open the rightbar (TAB not intercepted while the settings dialog is open) / default to fullscreen; left sidebar background unification (single control source: layout/module layer, the other forced to none) and background transparency (drop the fill's built-in alpha and blend with the configured transparency); workspace hover card theme adaptation (hardcoded colors to theme tokens, status dot excluded);
+- **dsh-cost-meter peak/valley theme adaptation**: weekend/classic markers and labels use theme semantic colors; the peak-hour color is configurable (warning/danger/error, default error) applied to the :after arrow, peak backgrounds, rail-classic segments and .peak chip/labels; tooltips themed; markers lose their native border and shadow;
+- **Plugin panels**: a GitHub link button next to the panel name (navigates only on click, does not toggle the panel); the version badge sits right after the name;
+- **Polish**: setting names bolded (700) with adjusted sizes/colors; collapse icons and version badges vertically centered.
+
+## 0.1.5-rc.2（新增 mega 优化页）
 ## 0.1.5-rc.2（新增 mega 优化页）
 
 [中文](#cn-v0.1.5-rc.2) | [English](#en-v0.1.5-rc.2)

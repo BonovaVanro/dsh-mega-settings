@@ -90,19 +90,19 @@ DSH（DeepSeek Harness）的**统一设置中心**：把散落插件的设置入
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.1
 ```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.1
 ```
 
 **本地包**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.1.tgz
 ```
 
 ## 快速上手
