@@ -15,7 +15,7 @@
  * - mega 固组（mega-settings 行与成员行）不可拖、不可作为落点；
  * - 拖拽进行中（一级行拖入时）空未分组保持显示为接收槽。
  */
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { ControlMode, MegaSettingsConfig, SettingsGroup } from '../schema.ts'
 import {
   NATIVE_SECTION_IDS,
@@ -36,8 +36,9 @@ import {
   type SectionEntry,
 } from './pure.ts'
 import { MEMBER_PAGE_SEAT } from './seats.ts'
-import { MiniSectionContent } from './mini.tsx'
+import { MiniSectionContent, MiniSlotContent, type MiniSlots } from './mini.tsx'
 import {
+  ConnectionIndicator,
   IconAgentPresetOutline16,
   IconCloseOutline16,
   IconDataOutline16,
@@ -46,8 +47,6 @@ import {
   IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsCenter, type SettingsCenterInjected } from './SettingsCenter.tsx'
-import { syncOptimizeEffects } from './optimize-effects.ts'
-import { readVersionsCache } from './versions.ts'
 
 export interface ShellInjected {
   scope: SettingsCenterInjected['scope']
@@ -61,6 +60,55 @@ interface ShellProps {
   wide?: boolean
   /** 官方渲染器经 inject hooks 注入的 sections selector（行数据已解析 label） */
   useSections?: (selector: (rows: { id: string; order: number; label: string }[]) => unknown) => unknown
+  /** 官方渲染器经 inject hooks 注入的连接状态 selector（hooks.connectionState） */
+  useConnectionState?: (selector: (state: string | undefined) => unknown) => string | undefined
+  /** 请求立即重连（官方 SettingsRootInjected.reconnect） */
+  reconnect?: () => void
+  /** 会话状态 selector（官方 SettingsRootInjected.hooks.sessions → useSessions；onboarding 判定用） */
+  useSessions?: (selector: (state: OnboardingSessionState | undefined) => unknown) => unknown
+}
+
+/** onboarding 判定输入（sessions 服务快照的最小面） */
+interface OnboardingSessionState {
+  phase?: string
+  byId?: Record<string, { blank?: boolean; retainedBy?: { mainView?: number } }>
+}
+
+/** 官方 SettingsRoot 同款：会话层就绪且（无主视图会话 / 主视图会话仍是空白会话）→ 展示引导步 */
+function onboardingActiveOf(state: OnboardingSessionState | undefined): boolean {
+  if (state === undefined || state.phase !== 'ready') return false
+  const main = Object.values(state.byId ?? {}).find((s) => (s.retainedBy?.mainView ?? 0) > 0)
+  return main === undefined || main.blank === true
+}
+
+/* 无 sessions 源时保持调用点稳定的空源 hook（hook 计数与真实 hook 一致） */
+const absentSessionsSubscribe = (): (() => void) => () => {}
+const absentSessionsSnapshot = (): undefined => undefined
+const useAbsentSessions = (): undefined =>
+  useSyncExternalStore(absentSessionsSubscribe, absentSessionsSnapshot, absentSessionsSnapshot)
+
+/** settings.onboarding 步骤（order 升序；账本 version 缓存 → getSnapshot 引用稳定）。 */
+function useOnboardingSteps(mini: MiniSlots): { id: string; order: number }[] {
+  const [subscribe, getSnapshot] = useMemo(() => {
+    let version = -1
+    let steps: { id: string; order: number }[] = []
+    return [
+      (fn: () => void) => mini.subscribe('settings.onboarding', fn),
+      () => {
+        const v = mini.getVersion('settings.onboarding')
+        if (v !== version) {
+          version = v
+          steps = mini
+            .entriesOfSlot('settings.onboarding')
+            .map((e) => ({ id: (e.options?.id ?? e.id ?? '') as string, order: e.options?.order ?? 0 }))
+            .filter((s) => s.id.length > 0)
+            .sort((a, b) => a.order - b.order)
+        }
+        return steps
+      },
+    ] as const
+  }, [mini])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 type NavTarget = { kind: 'section'; id: string } | { kind: 'member'; id: string } | { kind: 'mega' } | null
@@ -141,7 +189,7 @@ const OFFICIAL_CSS = [
   '.overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center}',
   '.mask{position:absolute;inset:0;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur)}',
   '.panel{position:relative;z-index:1;display:flex;width:800px;height:min(800px,calc(100vh - 48px));max-width:calc(100vw - 48px);border-radius:32px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}',
-  '.nav{flex:none;display:flex;flex-direction:column;gap:18px;width:188px;padding:22px 12px 0;box-sizing:border-box}',
+  '.nav{flex:none;display:flex;flex-direction:column;gap:10px;width:188px;padding:22px 12px 12px;box-sizing:border-box}',
   '.navTitle{padding:0 12px;font-size:16px;line-height:24px;font-weight:500;color:var(--dsw-alias-label-primary)}',
   '.navList{display:flex;flex-direction:column;gap:4px}',
   '.navCell{display:flex;align-items:center;gap:8px;height:40px;padding:9px 16px 9px 12px;box-sizing:border-box;border:none;border-radius:12px;background:transparent;cursor:pointer;font-family:inherit;font-size:14px;line-height:22px;font-weight:400;color:var(--dsw-alias-label-primary);text-align:left}',
@@ -608,14 +656,51 @@ export function SettingsShell(props: ShellProps) {
     ? (useSections((r: unknown) => r) as { id: string; order: number; label: string }[])
     : localSections(slots)
   ).filter((r) => r.id.length > 0)
-  // mega 优化效果常驻同步（样式标签 + JS 效果；开关变更即时注入/卸载；幂等）
-  // installed 取版本缓存；activeSections = 现行 settings.section 条目（插件未启用 → 不注入）
-  const activeSectionsSig = navRows.map((r) => r.id).join('|')
-  useEffect(() => {
-    syncOptimizeEffects(config, new Set(Object.keys(readVersionsCache())), new Set(navRows.map((r) => r.id)))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, activeSectionsSig])
+  // 优化效果同步已上移到 client/index.ts 的 apply（模块求值先注入 + 订阅校正）；
+  // 这里不再按 React 挂载时机同步，避免宿主快照未就绪时用默认值覆盖首帧注入。
   const [open, setOpen] = useState(false)
+  // 官方 onboarding 舞台（settings.onboarding）：会话层就绪且无主视图会话/空白会话时，
+  // 逐个展示「未读」引导步（步骤完成态为组件内会话级状态，官方同款——不落盘）。
+  const useSessionsHook = props.useSessions ?? useAbsentSessions
+  const onboardingActive = useSessionsHook(onboardingActiveOf) === true
+  const onboardingSteps = useOnboardingSteps(slots.mini)
+  const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set<string>())
+  useEffect(() => {
+    if (!onboardingActive) setCompletedOnboarding(new Set<string>())
+  }, [onboardingActive])
+  const onboardingStep = onboardingActive
+    ? onboardingSteps.find((step) => !completedOnboarding.has(step.id))
+    : undefined
+  // 连接状态（官方 ConnectionIndicator：connecting / disconnected / recovered）
+  const connectionState = props.useConnectionState ? props.useConnectionState((s) => s) : undefined
+  const [recovered, setRecovered] = useState(false)
+  const prevConnectionRef = useRef<string | undefined>(connectionState)
+  useEffect(() => {
+    const previous = prevConnectionRef.current
+    prevConnectionRef.current = connectionState
+    if (connectionState !== 'connected') {
+      setRecovered(false)
+      return
+    }
+    if (previous !== 'disconnected' && previous !== 'connecting') return
+    setRecovered(true)
+    const timer = window.setTimeout(() => setRecovered(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [connectionState])
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const wasOpenRef = useRef(open)
+  useEffect(() => {
+    if (wasOpenRef.current && !open) triggerRef.current?.focus()
+    wasOpenRef.current = open
+  }, [open])
+  useEffect(() => {
+    if (open) closeRef.current?.focus()
+  }, [open])
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const searching = q !== ''
+  const matchesLabel = (label: string): boolean => q === '' || label.toLowerCase().includes(q)
   const [target, setTarget] = useState<NavTarget>(null)
   // 折叠设置默认收起（$fold: true）；每次打开弹层恢复收起
   const [closed, setClosed] = useState<Record<string, boolean>>({ $fold: true })
@@ -831,6 +916,10 @@ export function SettingsShell(props: ShellProps) {
   // 弹层关闭时退出分组命名（避免下次打开残留编辑态）
   useEffect(() => {
     if (!open) setEditingGid(null)
+  }, [open])
+  // 弹层关闭时清空搜索（避免下次打开残留过滤）
+  useEffect(() => {
+    if (!open) setQuery('')
   }, [open])
 
   const close = () => setOpen(false)
@@ -1101,6 +1190,57 @@ export function SettingsShell(props: ShellProps) {
 
   const renderNav = (): ReactNode[] => {
     const rows: ReactNode[] = []
+    // 搜索模式：纯过滤展示（无拖拽/落点）；命中为空的分组整组隐藏
+    if (searching) {
+      const cell = (
+        key: string,
+        label: string,
+        cls: string,
+        icon: ReactNode,
+        active: boolean,
+        onClick: () => void,
+      ): ReactNode => (
+        <NavCell key={key} className={cls} icon={icon} label={label} active={active} onClick={onClick} />
+      )
+      const sectionActive = (id: string): boolean => target !== null && target.kind === 'section' && target.id === id
+      for (const r of topDisplayRows) {
+        if (!matchesLabel(r.label)) continue
+        rows.push(cell('x' + r.id, r.label, 'mgs-nav-row', navIconOf(r.id), sectionActive(r.id), () => setTarget({ kind: 'section', id: r.id })))
+      }
+      if (mode === 'fold') {
+        const sub: ReactNode[] = []
+        const megaLabel = t ? t('settings.center') : 'mega 设置'
+        const megaHit = matchesLabel(megaLabel)
+        const memberHits = memberSorted.filter((m) => matchesLabel(memberLabel(m)))
+        if (megaHit || memberHits.length > 0) {
+          sub.push(<GroupSeparator key="sep-mega" label={t ? t('group.mega') : 'mega'} />)
+          if (megaHit) sub.push(cell('mega-admin', megaLabel, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, target !== null && target.kind === 'mega', () => setTarget({ kind: 'mega' })))
+          for (const m of memberHits) {
+            const id = memberId(m)
+            sub.push(cell('m' + id, memberLabel(m), 'mgs-fold-item', <IconSettingsOutline16 size={16} />, target !== null && target.kind === 'member' && target.id === id, () => setTarget({ kind: 'member', id })))
+          }
+        }
+        for (const g of groups) {
+          const items = visibleOf(g.itemIds).filter((r) => matchesLabel(r.label))
+          if (items.length === 0) continue // 命中为空 → 分组不显示
+          sub.push(<div key={'sep-' + g.id} className="mgs-fold-sep mgs-fold-title"><span>{g.name}</span></div>)
+          for (const it of items) {
+            sub.push(cell('s' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
+          }
+        }
+        const uHits = ungroupedVisible
+          .map((id) => managedById.get(id))
+          .filter((x): x is NavRowLike => x !== undefined && matchesLabel(x.label))
+        if (uHits.length > 0) {
+          sub.push(<div key="sep-u" className="mgs-fold-sep mgs-fold-sep-u"><span>{t ? t('group.ungrouped') : '未分组'}</span></div>)
+          for (const it of uHits) {
+            sub.push(cell('u' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
+          }
+        }
+        if (sub.length > 0) rows.push(<div key="fold-body" className="mgs-fold-body">{sub}</div>)
+      }
+      return rows
+    }
     /* —— 顶区（未纳管原生 + navOrder 行；悬停时单槽落点，悬停高亮） —— */
     const navStrip = (o: number, key: string): ReactNode => (
       <div
@@ -1436,6 +1576,7 @@ export function SettingsShell(props: ShellProps) {
     <>
       <div className={cls(C.triggerRow, !props.wide && C.railRow)}>
         <button
+          ref={triggerRef}
           type="button"
           className={cls(C.trigger, !props.wide && C.rail)}
           aria-haspopup="dialog"
@@ -1446,26 +1587,74 @@ export function SettingsShell(props: ShellProps) {
             setOpen(true)
           }}
         >
-          {props.wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
-          {props.wide ? <span className={C.triggerLabel}>{t ? t('shell.trigger') : '设置'}</span> : null}
+          {slots.mini.entriesOfSlot('settings.trigger').length > 0 ? (
+            <MiniSlotContent slots={slots.mini} slotKey="settings.trigger" ownerProps={{ wide: props.wide }} />
+          ) : (
+            <>
+              {props.wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
+              {props.wide ? <span className={C.triggerLabel}>{t ? t('shell.trigger') : '设置'}</span> : null}
+            </>
+          )}
         </button>
+        {/* 官方连接指示器（connecting / disconnected / recovered + 点击重连） */}
+        <ConnectionIndicator
+          state={props.wide ? (connectionState === 'connecting' ? 'connecting' : connectionState === 'disconnected' ? 'disconnected' : recovered ? 'recovered' : undefined) : undefined}
+          disconnectedLabel={t ? t('shell.connection.error') : '连接异常，刷新重试'}
+          reconnectLabel={t ? t('shell.connection.retry') : '立即重连'}
+          connectingLabel={t ? t('shell.connection.connecting') : '重新连接中'}
+          recoveredLabel={t ? t('shell.connection.connected') : '连接成功'}
+          reconnectActionLabel={t ? t('shell.connection.reconnect') : '连接异常，点击立即重连'}
+          restartActionLabel={t ? t('shell.connection.restart') : '连接中断，正在重试，点击立即重连'}
+          onReconnect={props.reconnect}
+        />
       </div>
       {open ? (
         <div className={C.overlay} role="presentation">
           <div className={C.mask} aria-hidden="true" onClick={close} />
           <div className={C.panel} role="dialog" aria-modal="true">
             <nav className={C.nav}>
-              <div className={C.navTitle}>{t ? t('shell.trigger') : '设置'}</div>
+              <div className={C.navTitle}>
+                {slots.mini.entriesOfSlot('settings.header').length > 0 ? (
+                  <MiniSlotContent slots={slots.mini} slotKey="settings.header" />
+                ) : (
+                  <>{t ? t('shell.trigger') : '设置'}</>
+                )}
+              </div>
+              {config.searchEnabled !== false ? (
+              <div className="mgs-nav-search">
+                <div className="mgs-nav-search-box">
+                  <svg className="mgs-nav-search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
+                    <circle cx="7" cy="7" r="4.5" />
+                    <path d="M10.5 10.5L14 14" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={query}
+                    placeholder={t ? t('shell.search') : '搜索设置…'}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              ) : null}
               <div className={C.navList} ref={navListRef}>
                 {renderNav()}
               </div>
             </nav>
             <div className={C.content}>
               <div className={C.header}>
-                <div className={C.actions} />
-                <button type="button" className={C.close} onClick={close}>
+                <div className={C.actions}>
+                  {/* 官方 settings.action 全量条目（打开配置文件等；含第三方注册者） */}
+                  <MiniSlotContent slots={slots.mini} slotKey="settings.action" />
+                </div>
+                <button ref={closeRef} type="button" className={C.close} onClick={close}>
                   <IconCloseOutline16 size={14} />
-                  <span className={C.hiddenLabel}>{t ? t('shell.close') : '关闭'}</span>
+                  <span className={C.hiddenLabel}>
+                    {slots.mini.entriesOfSlot('settings.close').length > 0 ? (
+                      <MiniSlotContent slots={slots.mini} slotKey="settings.close" />
+                    ) : (
+                      <>{t ? t('shell.close') : '关闭'}</>
+                    )}
+                  </span>
                 </button>
               </div>
               <div className={cls(C.options, target !== null && target.kind === 'mega' && 'mgs-options-mega')}>
@@ -1474,6 +1663,23 @@ export function SettingsShell(props: ShellProps) {
             </div>
           </div>
         </div>
+      ) : null}
+      {/* 官方位置：设置面板之后的同级 onboarding 舞台（欢迎/引导步；无步骤 = 不渲染） */}
+      {onboardingStep !== undefined ? (
+        <MiniSlotContent
+          slots={slots.mini}
+          slotKey="settings.onboarding"
+          only={onboardingStep.id}
+          ownerProps={{
+            stepId: onboardingStep.id,
+            complete: () =>
+              setCompletedOnboarding((prev) => new Set(prev).add(onboardingStep.id)),
+            openSection: (id: string) => {
+              setTarget({ kind: 'section', id })
+              setOpen(true)
+            },
+          }}
+        />
       ) : null}
     </>
   )

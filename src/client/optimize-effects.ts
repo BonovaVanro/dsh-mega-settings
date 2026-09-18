@@ -7,10 +7,55 @@
  * 需由持有方清理——每次调用会校正全部 data-mgs-opt-id 标签与激活的 JS 效果，
  * 丢失的自动重建/重挂，多余/失效的自动移除/卸载。
  */
-import type { MegaSettingsConfig } from '../schema.ts'
 import { OPTIMIZE_DEFS, enabledOptimizeIds, optimizeValue } from './optimize.ts'
 
 const TAG_PLUGIN = 'dsh-mega-settings/optimize'
+
+/* ================= 本地镜像（刷新首帧生效） ================= */
+
+/**
+ * 优化配置本地镜像：宿主 settings 快照要走一次 describe 往返（客户端镜像初始 idle、view 为
+ * undefined），若等它到达才注入样式，刷新时会先看到未优化的一帧再跳变。这里把「上次已知的
+ * 优化配置」落到 localStorage，模块求值阶段（React 渲染前）先按它注入，快照到达后校正。
+ */
+const OPT_CACHE_KEY = 'dsh-mega-settings.optimize.v1'
+
+/** syncOptimizeEffects 需要的最小配置面（MegaSettingsConfig 结构兼容）。 */
+export interface OptimizeConfigLike {
+  optToggles?: Record<string, boolean>
+  optValues?: Record<string, number>
+}
+
+/** 读本地镜像；无缓存 / 坏数据 / localStorage 不可用 → undefined（调用方回退各项默认值）。 */
+export function readOptimizeCache(): OptimizeConfigLike | undefined {
+  try {
+    const raw = localStorage.getItem(OPT_CACHE_KEY)
+    if (!raw) return undefined
+    const parsed = JSON.parse(raw) as { optToggles?: unknown; optValues?: unknown } | null
+    if (parsed === null || typeof parsed !== 'object') return undefined
+    const toggles = parsed.optToggles
+    const values = parsed.optValues
+    return {
+      optToggles:
+        toggles !== null && typeof toggles === 'object' ? (toggles as Record<string, boolean>) : {},
+      optValues: values !== null && typeof values === 'object' ? (values as Record<string, number>) : {},
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** 回写本地镜像（只存优化相关字段；失败忽略）。 */
+function writeOptimizeCache(config: OptimizeConfigLike): void {
+  try {
+    localStorage.setItem(
+      OPT_CACHE_KEY,
+      JSON.stringify({ optToggles: config.optToggles ?? {}, optValues: config.optValues ?? {} }),
+    )
+  } catch {
+    /* 忽略 */
+  }
+}
 
 /* ================= JS 效果注册表 ================= */
 
@@ -287,12 +332,29 @@ function enableRightbarDefaultFullscreen(): () => void {
   }
 }
 
+/**
+ * dsh：Ctrl+Shift+S 打开设置页。
+ * 模拟点击设置壳的触发器按钮打开弹层；preventDefault 拦截浏览器默认（另存为）。
+ */
+function enableSettingsShortcut(): () => void {
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 's' && e.key !== 'S') return
+    if (!e.ctrlKey || !e.shiftKey) return
+    e.preventDefault()
+    const trigger = document.querySelector<HTMLElement>('.triggerRow .trigger')
+    if (trigger !== null) trigger.click()
+  }
+  document.addEventListener('keydown', onKey, true)
+  return () => document.removeEventListener('keydown', onKey, true)
+}
+
 const JS_EFFECTS: Record<string, (() => () => void) | undefined> = {
   rightbarFullscreenZeroTrack: enableRightbarFullscreenZeroTrack,
   rightbarFullscreenPadding: enableRightbarFullscreenPadding,
   rightbarFullscreenEscapeClose: enableRightbarFullscreenEscapeClose,
   rightbarTabOpen: enableRightbarTabOpen,
   rightbarDefaultFullscreen: enableRightbarDefaultFullscreen,
+  settingsShortcut: enableSettingsShortcut,
 }
 
 /** 当前挂载中的 JS 效果（key → disposer）。 */
@@ -330,15 +392,46 @@ function removeTag(id: string): void {
 }
 
 /**
+ * 让优化标签**始终位于 <head> 末尾**。
+ *
+ * 官方与第三方 UI 的 CSS 模块是在各自 bundle 求值时注入的（<style data-plugin-css=…>）；
+ * 我们的标签为了首帧生效会插得很早，于是同特异性的官方规则（如 .P3OORG_panel 的
+ * background）会因为「更靠后」而覆盖我们的覆盖——透明度一类设置就会失效。这里在每次同步
+ * 后把标签移到 head 末尾，并观察 head 的新增样式，保持「我们最后」的层叠顺序
+ * （与改动前按 React 挂载时机注入时的顺序一致）。
+ */
+let headObserver: MutationObserver | undefined
+
+function keepTagsLast(): void {
+  if (typeof document === 'undefined') return
+  const tags = findTags()
+  if (tags.length === 0) return
+  const last = tags[tags.length - 1]
+  if (last.parentElement === document.head && last.nextElementSibling === null) return // 已在末尾
+  for (const tag of tags) document.head.appendChild(tag) // 移动（DOM 顺序即层叠顺序）
+}
+
+function observeHead(): void {
+  if (headObserver !== undefined || typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
+    return
+  }
+  headObserver = new MutationObserver(() => keepTagsLast())
+  headObserver.observe(document.head, { childList: true })
+  keepTagsLast()
+}
+
+/**
  * 按配置校正全部优化效果（样式标签 + JS 效果；幂等；document 不可用时静默跳过）。
  * @param installed 已安装插件包名集合（可选）：plugin 组 def 的目标插件不在其中时
  *  不注入/不挂载（未安装 → 不生效）。
  */
 export function syncOptimizeEffects(
-  config: MegaSettingsConfig | undefined,
+  config: OptimizeConfigLike | undefined,
   installed?: ReadonlySet<string>,
   activeSections?: ReadonlySet<string>,
 ): void {
+  // 真实配置（含传参为镜像时，内容一致）落盘 → 下次刷新首帧即可生效
+  if (config !== undefined) writeOptimizeCache(config)
   if (typeof document === 'undefined') return
   try {
     const enabled = enabledOptimizeIds(config)
@@ -367,6 +460,9 @@ export function syncOptimizeEffects(
       const id = tag.dataset.mgsOptId ?? ''
       if (!wanted.has(id)) tag.remove()
     }
+    // 层叠顺序：保持我们的标签在 head 末尾（官方/第三方 CSS 后注入时同样适用）
+    observeHead()
+    keepTagsLast()
     // JS 效果：卸载不再需要的
     for (const [key, dispose] of activeJs) {
       if (!wantedJs.has(key)) {

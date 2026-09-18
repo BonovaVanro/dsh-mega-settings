@@ -9,15 +9,24 @@ import { memberLabel, type MemberEntry, type SectionEntry } from './pure.ts'
 import { zh, en } from './locales.ts'
 import type { MegaSettingsConfig } from '../schema.ts'
 import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID } from './seats.ts'
-import type { MiniSlots } from './mini.tsx'
+import { forwardTranslate, type MiniSlots } from './mini.tsx'
 import { OptimizeCenter } from './OptimizeCenter.tsx'
+import { readOptimizeCache, syncOptimizeEffects } from './optimize-effects.ts'
+import { readVersionsCache, subscribeVersions } from './versions.ts'
 export { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID }
 
 /** 构建期注入的包版本（scripts/build-client.mjs；成员徽章/优化页徽章用）。 */
 declare const MGS_VERSION: string
 
 export const name = 'dsh-mega-settings'
-export const inject = ['slots', 'settingsScope', 'locale']
+export const inject = ['slots', 'settingsScope', 'locale', 'sessions']
+
+/* 刷新首帧即生效（FOUC 修复）：模块求值阶段（React 渲染前、官方 settings 快照到达前）
+ * 先按本地镜像注入优化效果，避免「先看到未优化的一帧、再跳变成优化后」；
+ * 宿主快照 / settings.section / 已装版本到达后由 apply 的订阅校正。 */
+if (typeof document !== 'undefined') {
+  syncOptimizeEffects(readOptimizeCache(), new Set(Object.keys(readVersionsCache())))
+}
 
 /**
  * slots 服务的最小类型面（dsh-client-ui-slots 为虚拟包无 .d.ts 落盘；在一处适配，
@@ -72,7 +81,7 @@ function miniFace(ctx: Context): MiniSlots {
       subscribe(fn: () => void): () => void
     }
     locale?: {
-      bind(ns: string): (key: string) => string
+      bind(ns: string): (key: string, params?: Record<string, unknown>) => string
       getSnapshot(): { revision: number }
       subscribe(fn: () => void): () => void
     }
@@ -82,11 +91,13 @@ function miniFace(ctx: Context): MiniSlots {
   // 包装对象身份稳定，mini 可安全订阅 locale revision 以驱动 thunk label/t 重解析）。
   const localeFace = host.locale
     ? {
-        bind: (ns: string) => (key: string) => (host.locale ? host.locale.bind(ns)(key) : key),
+        // 透传 params：官方 translate 在 params 为空时返回模板原文（{n}/{name} 不插值）
+        bind: (ns: string) => forwardTranslate(() => host.locale?.bind(ns)),
         getSnapshot: () => host.locale?.getSnapshot() ?? { revision: 0 },
         subscribe: (fn: () => void) => host.locale?.subscribe(fn) ?? (() => {}),
       }
     : undefined
+
   return {
     entriesOfSlot: (key) => slots.entriesOfSlot(key) as MiniSlots['entriesOfSlot'] extends (k: string) => infer R ? R : never,
     subscribe: (key, fn) => slots.subscribe(key, fn),
@@ -138,10 +149,22 @@ function mountShell(
   let rowsVersion = -1
   let rowsRevision = -1
   let rows: { id: string; order: number; label: string }[] = []
+  // 连接状态/重连（官方 SettingsRootInjected 同款：connection 服务 observable + reconnect 回调）
+  // 官方 settings.trigger/header/action/close 等子槽由 mini 同构渲染器直接消费（不经 renderSlot）
+  const connection = ctx.get('connection') as unknown as
+    | { state: { getSnapshot(): unknown; subscribe(fn: () => void): () => void }; reconnect(): void }
+    | undefined
+  // onboarding 判定源（官方 SettingsRoot 同款：sessions 服务 observable 的 list；缺省则永不展示引导步）
+  const sessions = ctx.get('sessions') as unknown as
+    | { list?: { getSnapshot(): unknown; subscribe(fn: () => void): () => void } }
+    | undefined
   const shellInjected = () => ({
     scope,
     slots: slotsFace(ctx),
+    reconnect: connection === undefined ? undefined : (): void => connection.reconnect(),
     hooks: {
+      connectionState: connection?.state,
+      sessions: sessions?.list,
       sections: {
         getSnapshot: () => {
           const version = slots.getVersion('settings.section')
@@ -181,6 +204,9 @@ function mountShell(
     children: {
       [MEMBER_META_SEAT]: { kind: 'list' as const, scope: 'root' as const },
       [MEMBER_PAGE_SEAT]: { kind: 'keyed' as const, scope: 'root' as const },
+      // 注意：不能在此声明官方 settings.header/action/close 等子槽——
+      // 官方 sidebar.settings 条目已声明它们，再声明会报 "slot already declared"；
+      // 影子壳因此无法经 renderSlot 渲染官方 settings.* 内容（操作列保持为空）。
     },
   }
   return slots.inject('sidebar.settings', () => slots.register(options, SettingsShell))
@@ -194,6 +220,34 @@ export function apply(ctx: Context): void {
 
   // 自身配置 scope（组件渲染用；mode/entry 驱动挂载迁移）
   const scope = ctx.settingsScope.bind<MegaSettingsConfig>({ namespace: 'mega-settings' })
+
+  // 优化效果常驻同步（不依赖 React 挂载时机）：配置 / settings.section / 已装版本变化即校正。
+  // 宿主快照未就绪（client 镜像 idle）时沿用本地镜像而非默认值——否则会把首帧注入的
+  // 用户配置又退回默认，造成二次跳变。
+  const effectSlots = ctx.slots as unknown as SlotsLike
+  const syncEffects = (): void => {
+    const value = (scope.getSnapshot() as { value?: MegaSettingsConfig }).value
+    syncOptimizeEffects(
+      value ?? readOptimizeCache(),
+      new Set(Object.keys(readVersionsCache())),
+      new Set(
+        effectSlots
+          .entriesOfSlot('settings.section')
+          .map((e) => (e.options?.id ?? e.id ?? '') as string)
+          .filter((id) => id.length > 0),
+      ),
+    )
+  }
+  const disposeEffects = (): void => {
+    offScope()
+    offSections()
+    offVersions()
+  }
+  const offScope = scope.subscribe(syncEffects)
+  const offSections = effectSlots.subscribe('settings.section', syncEffects)
+  const offVersions = subscribeVersions(syncEffects)
+  ctx.effect(() => disposeEffects)
+  syncEffects()
 
   // 设置壳恒驻（shadow sidebar.settings）；mode/entry 在壳与设置中心内读取，挂载不迁移
   mountShell(ctx, scope, () => t('settings.center'))

@@ -9,6 +9,16 @@ import { useEffect, useState } from 'react'
 
 const VERSIONS_CACHE_KEY = 'dsh-mega-settings.versions.v1'
 
+/** 版本映射变化订阅（优化效果在「已装插件」集合变化后需重新校正）。 */
+const versionListeners = new Set<() => void>()
+
+export function subscribeVersions(fn: () => void): () => void {
+  versionListeners.add(fn)
+  return () => {
+    versionListeners.delete(fn)
+  }
+}
+
 export function readVersionsCache(): Record<string, string> {
   try {
     const raw = localStorage.getItem(VERSIONS_CACHE_KEY)
@@ -28,6 +38,13 @@ function writeVersionsCache(versions: Record<string, string>): void {
     localStorage.setItem(VERSIONS_CACHE_KEY, JSON.stringify(versions))
   } catch {
     /* 写入失败忽略 */
+  }
+  for (const fn of versionListeners) {
+    try {
+      fn()
+    } catch {
+      /* 单个订阅者异常不影响其他 */
+    }
   }
 }
 

@@ -36,7 +36,7 @@ export interface MiniSlots {
     /** root 标准源绑定（0.1.2 线取代 sessions/workspaces） */
     root?: ObservableSource<MiniStandardBinding>
     locale?: {
-      bind(ns: string): (key: string) => string
+      bind(ns: string): (key: string, params?: Record<string, unknown>) => string
       getSnapshot(): { revision: number }
       subscribe(fn: () => void): () => void
     }
@@ -169,12 +169,33 @@ function useSlotVersion(slots: MiniSlots, key: string): number {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
+/**
+ * 转发官方 translate：**必须透传 params**。
+ * 官方 translate 在 params 为空时直接返回模板原文（如 '{n}天'、'{name}（默认）'），
+ * 只转发第一个参数会让所有带占位符的词条原样显示。
+ * @param resolve 惰性取当前绑定（官方 locale 面是 live getter，用的时候才解引用）。
+ */
+export function forwardTranslate(
+  resolve: () => ((key: string, params?: Record<string, unknown>) => string) | undefined,
+): (key: string, params?: Record<string, unknown>) => string {
+  return (key, params) => {
+    const t = resolve()
+    return t ? t(key, params) : key
+  }
+}
+
 /* locale seat：revision 变化换绑（对齐官方 localeSeat） */
-const localeSeatCache = new WeakMap<object, Map<string, { rev: number; t: (key: string) => string }>>()
+const localeSeatCache = new WeakMap<
+  object,
+  Map<string, { rev: number; t: (key: string, params?: Record<string, unknown>) => string }>
+>()
 function localeSeat(
-  face: { bind(ns: string): (key: string) => string; getSnapshot(): { revision: number } },
+  face: {
+    bind(ns: string): (key: string, params?: Record<string, unknown>) => string
+    getSnapshot(): { revision: number }
+  },
   ns: string,
-): (key: string) => string {
+): (key: string, params?: Record<string, unknown>) => string {
   let perNs = localeSeatCache.get(face as object)
   if (!perNs) {
     perNs = new Map()
@@ -306,6 +327,39 @@ function MiniSlotRenderer(props: {
             createElement(MiniSlotRenderer, { slots, parent: e as RenderableEntry, slotKey: k, owner: o, opts: op }),
         }),
       )}
+    </>
+  )
+}
+
+/* 任意顶层插槽内容渲染（壳/宿主子页用）：官方 renderSlot 受本 entry children 声明限制
+ * （settings.* 槽已被官方条目声明，影子壳无法再声明），此处按官方同构 props 组装直接渲染
+ * 该槽全部条目（order 升序）——官方内置内容与第三方注册者一并生效。 */
+export function MiniSlotContent(props: {
+  slots: MiniSlots
+  slotKey: string
+  ownerProps?: Record<string, unknown>
+  /** 仅渲染指定 entry id（single 槽取默认内容时用） */
+  only?: string
+}): ReactNode {
+  const { slots, slotKey, ownerProps, only } = props
+  const version = useSlotVersion(slots, slotKey)
+  void version
+  const winners = slots
+    .entriesOfSlot(slotKey)
+    .filter((e) => only === undefined || (e.options?.id ?? e.id) === only)
+    .sort((a, b) => (a.options?.order ?? 0) - (b.options?.order ?? 0))
+  if (winners.length === 0) return null
+  return (
+    <>
+      {winners.map((e, index) => (
+        <MiniEntryBoundary key={(e.options?.id ?? e.id ?? 'entry') + ':' + index} slotKey={slotKey}>
+          {renderMiniEntry(slots, slotKey, e as RenderableEntry, {
+            ownerProps: ownerProps ?? {},
+            renderChild: (k, o, op) =>
+              createElement(MiniSlotRenderer, { slots, parent: e as RenderableEntry, slotKey: k, owner: o, opts: op }),
+          })}
+        </MiniEntryBoundary>
+      ))}
     </>
   )
 }

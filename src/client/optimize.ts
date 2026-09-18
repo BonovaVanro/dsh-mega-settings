@@ -58,6 +58,7 @@ export interface OptimizeDef {
 const PLUGIN_TITLE_KEYS: Record<string, string> = {
   'dsh-better-sidebar': 'opt.plugin.title.betterSidebar',
   'dsh-cost-meter': 'opt.plugin.title.costMeter',
+  'dsh-client-ui-skill-explorer': 'opt.plugin.title.skillExplorer',
 }
 
 /** 已知插件的仓库主页（面板名称可点击跳转）。 */
@@ -222,6 +223,20 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
       ')}',
   },
   {
+    id: 'dsh.leftbarFooterActionsLayout',
+    group: 'dsh',
+    dshSection: 'leftbar',
+    nameKey: 'opt.dsh.leftbarFooterActionsLayout',
+    descKey: 'opt.dsh.leftbarFooterActionsLayout.desc',
+    // 侧栏底部动作区纵向排列（官方 .hHd-Xa_footerActions 原本为横向 flex）
+    // 折叠时（.hHd-Xa_collapsed / [data-sidebar-collapsed]）：按钮撑满宽度，动作区内的 div（含嵌套，如 cost-meter 的 .cm-footer-stack 及其行）文本居中
+    css: [
+      '.hHd-Xa_footerActions{display:flex;flex-direction:column;gap:8px}',
+      '.hHd-Xa_collapsed .hHd-Xa_footerActions button,.hHd-Xa_collapsed .hHd-Xa_footerActions [role="button"],[data-sidebar-collapsed] .hHd-Xa_footerActions button,[data-sidebar-collapsed] .hHd-Xa_footerActions [role="button"]{width:100%!important}',
+      '.hHd-Xa_collapsed .hHd-Xa_footerActions div,[data-sidebar-collapsed] .hHd-Xa_footerActions div{text-align:center}',
+    ].join(''),
+  },
+  {
     id: 'dsh.hoverCardTheme',
     group: 'dsh',
     dshSection: 'leftbar',
@@ -248,6 +263,14 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     // 必须的修正：!important 压过官方 .hWmORq_body .md-table-wide / ._tableScroll_kcgor_190.md-table-wide
     // （官方 max-width:none / 负 margin / padding-bottom:var(--dsh-scrollbar-width,8px) 预留）
     css: '.md-table-wide{max-width:100%!important;margin-left:0!important;padding-left:0!important;overflow:scroll}',
+  },
+  {
+    id: 'dsh.settingsShortcut',
+    group: 'dsh',
+    nameKey: 'opt.dsh.settingsShortcut',
+    descKey: 'opt.dsh.settingsShortcut.desc',
+    // Ctrl+Shift+S 打开设置页（模拟点击壳的触发器；preventDefault 拦截浏览器“另存为”）
+    jsEffect: 'settingsShortcut',
   },
   {
     id: 'betterSidebar.hideBottomToggle',
@@ -278,6 +301,48 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     css: CSS.costMeterPeakValley,
     cssValue: costMeterPeakHighCss,
   },
+  {
+    id: 'skillExplorer.themeAdapt',
+    group: 'plugin',
+    target: '@linxin666/dsh-client-ui-skill-explorer',
+    // 技能中心未注册 settings.section：缺省 sectionId → 仅按已装检测
+    nameKey: 'opt.plugin.skillExplorer.themeAdapt',
+    descKey: 'opt.plugin.skillExplorer.themeAdapt.desc',
+    // 主题适配：技能中心面板（根 = .cBrkua_overlay，hash 类；无 data-dsh-skill-explorer-view 属性）硬编码色改主题语义色，
+    // 使其受皮肤控制（无皮肤时深色回退规则不生效，面板显示浅色硬编码色，正是此适配要修的）。
+    // 徽章/删除/反馈用语义色 + rgb(from …) 透明度；cBrkua_* 为插件 hash 类（^0.3.22 稳定）。
+    css: [
+      '.cBrkua_overlay .cBrkua_card{background:var(--dsw-alias-bg-layer-2)!important;border-color:var(--dsw-alias-border-l2)!important;color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_head{background:var(--dsw-alias-bg-base)!important;color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_headTitle{color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_headButton{background:var(--dsw-alias-interactive-bg-hover)!important;color:var(--dsw-alias-label-secondary)!important}',
+      '.cBrkua_overlay .cBrkua_headButton:hover{background:var(--dsw-alias-interactive-bg-hover)!important}',
+      '.cBrkua_overlay .cBrkua_tabs,.cBrkua_overlay .cBrkua_filterBar{background:var(--dsw-alias-bg-layer-2)!important}',
+      '.cBrkua_overlay .cBrkua_groupTitle,.cBrkua_overlay .cBrkua_skillName{color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_status,.cBrkua_overlay .cBrkua_filterLabel,.cBrkua_overlay .cBrkua_skillDesc,.cBrkua_overlay .cBrkua_formLabel,.cBrkua_overlay .cBrkua_filterClear{color:var(--dsw-alias-label-secondary)!important}',
+      '.cBrkua_overlay .cBrkua_groupHint,.cBrkua_overlay .cBrkua_count,.cBrkua_overlay .cBrkua_skillWhen,.cBrkua_overlay .cBrkua_skillPath,.cBrkua_overlay .cBrkua_note,.cBrkua_overlay .cBrkua_filterEmpty{color:var(--dsw-alias-label-tertiary)!important}',
+      '.cBrkua_overlay .cBrkua_skill{background:var(--dsw-alias-bg-layer-1)!important;border-color:var(--dsw-alias-border-l2)!important}',
+      '.cBrkua_overlay .cBrkua_tab{color:var(--dsw-alias-label-tertiary)!important;border-color:var(--dsw-alias-border-l2)!important}',
+      '.cBrkua_overlay .cBrkua_tabActive{background:var(--dsw-alias-bg-layer-2)!important;color:var(--dsw-alias-label-primary)!important;border-color:var(--dsw-alias-border-l1)!important}',
+      '.cBrkua_overlay .cBrkua_filterInput,.cBrkua_overlay .cBrkua_filterSelect{background:var(--dsw-alias-bg-layer-1)!important;color:var(--dsw-alias-label-primary)!important;border-color:var(--dsw-alias-border-l2)!important}',
+      '.cBrkua_overlay .cBrkua_filterInput:focus,.cBrkua_overlay .cBrkua_filterSelect:focus{border-color:var(--dsw-alias-border-l1)!important}',
+      '.cBrkua_overlay .cBrkua_filterClear:hover{color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_switchTrack{background:var(--dsw-alias-bg-layer-3)!important;border-color:var(--dsw-alias-border-l2)!important}',
+      '.cBrkua_overlay .cBrkua_switchThumb{background:var(--dsw-alias-bg-base)!important}',
+      '.cBrkua_overlay .cBrkua_switch[aria-checked=true] .cBrkua_switchTrack{background:var(--dsw-alias-state-success-primary)!important}',
+      '.cBrkua_overlay .cBrkua_badge{background:rgb(from var(--dsw-alias-state-business-primary) r g b / 0.1)!important;color:var(--dsw-alias-state-business-primary)!important;border-color:rgb(from var(--dsw-alias-state-business-primary) r g b / 0.2)!important}',
+      '.cBrkua_overlay .cBrkua_badgeInvokable{background:rgb(from var(--dsw-alias-state-success-primary) r g b / 0.1)!important;color:var(--dsw-alias-state-success-primary)!important;border-color:rgb(from var(--dsw-alias-state-success-primary) r g b / 0.2)!important}',
+      '.cBrkua_overlay .cBrkua_badgeWorkspace{background:var(--dsw-alias-bg-layer-2)!important;color:var(--dsw-alias-label-secondary)!important;border-color:var(--dsw-alias-border-l2)!important}',
+      '.cBrkua_overlay .cBrkua_badgeIsolated{background:rgb(from var(--dsw-alias-state-warn-primary) r g b / 0.1)!important;color:var(--dsw-alias-state-warn-primary)!important;border-color:rgb(from var(--dsw-alias-state-warn-primary) r g b / 0.2)!important}',
+      '.cBrkua_overlay .cBrkua_deleteButton{background:rgb(from var(--dsw-alias-state-danger-primary) r g b / 0.1)!important;color:var(--dsw-alias-state-danger-primary)!important}',
+      '.cBrkua_overlay .cBrkua_feedback{color:var(--dsw-alias-state-danger-primary)!important}',
+      '.cBrkua_overlay .cBrkua_feedbackOk{color:var(--dsw-alias-state-success-primary)!important}',
+      '.cBrkua_overlay .cBrkua_formInput{background:var(--dsw-alias-bg-layer-2)!important;color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_formButton{background:var(--dsw-alias-bg-layer-2)!important;color:var(--dsw-alias-label-primary)!important}',
+      '.cBrkua_overlay .cBrkua_formButton:hover{background:var(--dsw-alias-interactive-bg-hover)!important}',
+    ].join(''),
+  },
+
 ]
 
 /** 按 id 查注册项。 */

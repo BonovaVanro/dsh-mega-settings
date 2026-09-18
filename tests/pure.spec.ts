@@ -82,7 +82,7 @@ describe('pure: sortMembers', () => {
 describe('v2: collectManaged（管控项收集）', () => {
   const sec = (id: string, order = 0) => ({ options: { id, order } })
   it('过滤原生分区/自身/mega 成员同 id', () => {
-    const sections = [sec('general'), sec('plugins'), sec('mega-settings'), sec('mega-chat-nav'), sec('dsh-better-sidebar', 5), sec('foo-plugin', 2)]
+    const sections = [sec('general'), sec('plugins'), sec('archived-sessions'), sec('mega-settings'), sec('mega-chat-nav'), sec('dsh-better-sidebar', 5), sec('foo-plugin', 2)]
     const items = collectManaged(sections, ['mega-chat-nav'])
     expect(items.map((i) => i.id)).toEqual(['foo-plugin', 'dsh-better-sidebar'])
   })

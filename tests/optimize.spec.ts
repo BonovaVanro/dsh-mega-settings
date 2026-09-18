@@ -10,7 +10,7 @@ import {
   optimizeSectionEnabled,
   validateOptimizeRegistry,
 } from '../src/client/optimize.ts'
-import { syncOptimizeEffects, fullscreenZeroTrackValue, splitGridTracks } from '../src/client/optimize-effects.ts'
+import { readOptimizeCache, syncOptimizeEffects, fullscreenZeroTrackValue, splitGridTracks } from '../src/client/optimize-effects.ts'
 import type { MegaSettingsConfig } from '../src/schema.ts'
 
 // 注册表中的插件 def（稳定存在）供开关解析用例引用
@@ -26,10 +26,10 @@ describe('optimize: 注册表完整性', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('dsh 组 + plugin 组并存（dsh 组当前 13 项）', () => {
+  it('dsh 组 + plugin 组并存（dsh 组当前 15 项）', () => {
     const dsh = optimizeByGroup('dsh')
     const plugin = optimizeByGroup('plugin')
-    expect(dsh.length).toBe(13)
+    expect(dsh.length).toBe(15)
     expect(plugin.length).toBeGreaterThan(0)
     expect(OPTIMIZE_DEFS.map((d) => d.group)).toEqual([
       ...dsh.map(() => 'dsh' as const),
@@ -92,10 +92,31 @@ describe('optimize: 注册表完整性', () => {
     expect(def!.jsEffect).toBe('rightbarDefaultFullscreen')
   })
 
-  it('左侧边栏相关 dsh def 带 dshSection=leftbar（背景统一化 / 透明度 / 悬浮卡）', () => {
-    for (const id of ['dsh.leftbarBgUnify', 'dsh.leftbarBgAlpha', 'dsh.hoverCardTheme']) {
+  it('dsh Ctrl+Shift+S 打开设置页 def：jsEffect + 一般区', () => {
+    const def = optimizeById('dsh.settingsShortcut')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('dsh')
+    expect(def!.dshSection).toBeUndefined()
+    expect(def!.jsEffect).toBe('settingsShortcut')
+  })
+
+  it('左侧边栏相关 dsh def 带 dshSection=leftbar（背景统一化 / 透明度 / 底部动作区 / 悬浮卡）', () => {
+    for (const id of ['dsh.leftbarBgUnify', 'dsh.leftbarBgAlpha', 'dsh.leftbarFooterActionsLayout', 'dsh.hoverCardTheme']) {
       expect(optimizeById(id)!.dshSection, id).toBe('leftbar')
     }
+  })
+
+  it('左侧边栏底部动作区布局 def：纵向 flex + 8px gap + 折叠时按钮撑满/条目居中', () => {
+    const def = optimizeById('dsh.leftbarFooterActionsLayout')
+    expect(def).toBeDefined()
+    expect(def!.dshSection).toBe('leftbar')
+    expect(def!.css).toContain('.hHd-Xa_footerActions{display:flex;flex-direction:column;gap:8px}')
+    expect(def!.css).toContain('.hHd-Xa_collapsed .hHd-Xa_footerActions button,')
+    expect(def!.css).toContain('.hHd-Xa_collapsed .hHd-Xa_footerActions [role="button"],')
+    expect(def!.css).toContain('[data-sidebar-collapsed] .hHd-Xa_footerActions button,')
+    expect(def!.css).toContain('[data-sidebar-collapsed] .hHd-Xa_footerActions [role="button"]{width:100%!important}')
+    expect(def!.css).toContain('.hHd-Xa_collapsed .hHd-Xa_footerActions div,')
+    expect(def!.css).toContain('[data-sidebar-collapsed] .hHd-Xa_footerActions div{text-align:center}')
   })
 
   it('左侧边栏背景颜色统一化 def：选中其一 → 另一层 background none', () => {
@@ -252,6 +273,24 @@ describe('optimize: 按插件分组（每插件一个面板）', () => {
     expect(titles.get('dsh-better-sidebar')).toBe('opt.plugin.title.betterSidebar')
   })
 
+  it('技能中心主题适配 def：plugin 组、缺省 sectionId、全硬编码色映射', () => {
+    const def = optimizeById('skillExplorer.themeAdapt')
+    expect(def).toBeDefined()
+    expect(def!.group).toBe('plugin')
+    expect(def!.target).toBe('@linxin666/dsh-client-ui-skill-explorer')
+    expect(def!.sectionId).toBeUndefined()
+    expect(def!.css).toContain('.cBrkua_overlay .cBrkua_card')
+    expect(def!.css).toContain('var(--dsw-alias-bg-layer-2)')
+    expect(def!.css).toContain('.cBrkua_head{background:var(--dsw-alias-bg-base)')
+    expect(def!.css).toContain('.cBrkua_headButton{background:var(--dsw-alias-interactive-bg-hover)')
+    expect(def!.jsEffect).toBeUndefined()
+    expect(def!.css).toContain('var(--dsw-alias-label-primary)')
+    expect(def!.css).toContain('.cBrkua_badgeIsolated')
+    expect(def!.css).toContain('var(--dsw-alias-state-warn-primary)')
+    expect(def!.css).toContain('.cBrkua_deleteButton')
+    expect(def!.css).toContain('var(--dsw-alias-state-danger-primary)')
+  })
+
   it('已知插件带仓库主页（面板名称可跳转）', () => {
     const urls = new Map(optimizePluginGroups().map((g) => [g.plugin, g.url]))
     expect(urls.get('dsh-better-sidebar')).toBe('https://github.com/omdsh-dev/DSH-better-sidebar')
@@ -328,6 +367,35 @@ describe('optimize-effects: 同步边界（node 无 document → 静默跳过）
     expect(() => syncOptimizeEffects(config)).not.toThrow()
     expect(() => syncOptimizeEffects(config, new Set(['dsh-better-sidebar']))).not.toThrow()
     expect(() => syncOptimizeEffects(config, new Set())).not.toThrow()
+  })
+})
+
+describe('optimize-effects: 刷新首帧本地镜像', () => {
+  it('真实配置回写镜像并可读回；无缓存 / 坏数据 → undefined', () => {
+    const store = new Map<string, string>()
+    const g = globalThis as unknown as { localStorage?: unknown }
+    const previous = g.localStorage
+    g.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    }
+    try {
+      expect(readOptimizeCache()).toBeUndefined()
+      const config: MegaSettingsConfig = {
+        optToggles: { 'dsh.rootBorderBox': false },
+        optValues: { 'dsh.leftbarBgAlpha': 40 },
+      } as MegaSettingsConfig
+      syncOptimizeEffects(config) // node 无 document：写镜像后静默返回
+      expect(readOptimizeCache()).toEqual({
+        optToggles: { 'dsh.rootBorderBox': false },
+        optValues: { 'dsh.leftbarBgAlpha': 40 },
+      })
+      store.set('dsh-mega-settings.optimize.v1', '{broken')
+      expect(readOptimizeCache()).toBeUndefined()
+    } finally {
+      if (previous === undefined) delete g.localStorage
+      else g.localStorage = previous
+    }
   })
 })
 

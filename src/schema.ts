@@ -31,6 +31,12 @@ export interface MegaSettingsConfig {
   optToggles: Record<string, boolean>
   /** 优化项数值（mega 优化页）：key = 优化项 id；如右侧边栏全屏背景透明度 0-100（数值越大越透明，缺省 = 该项 defaultValue） */
   optValues: Record<string, number>
+  /** mega 系插件兼容性校验（mega 家族契约）：false = 各 mega 插件启动时不再校验 dsh 版本兼容并提醒（各插件自行读取本值） */
+  compatCheck: boolean
+  /** 设置搜索功能（设置页导航顶部搜索框；false = 不显示） */
+  searchEnabled: boolean
+  /** 已读提示 id 列表（mega 设置页提示面板；点击「懂你意思」后写入） */
+  dismissedTips: string[]
 }
 
 export const defaultConfig: MegaSettingsConfig = {
@@ -43,9 +49,13 @@ export const defaultConfig: MegaSettingsConfig = {
   pluginExists: {},
   optToggles: {},
   optValues: {},
+  compatCheck: true,
+  searchEnabled: true,
+  dismissedTips: [],
 }
 
-export const MegaSettingsSchema = z.object({
+/** 显式标注：schemastery 的推断类型会引用 cosmokit 的 pnpm 私有路径，导致声明生成报 TS2742 */
+export const MegaSettingsSchema: z<MegaSettingsConfig> = z.object({
   mode: z.union(['fold', 'collect']).default('collect'),
   groups: z
     .array(
@@ -63,4 +73,7 @@ export const MegaSettingsSchema = z.object({
   pluginExists: z.dict(z.boolean()).default({}),
   optToggles: z.dict(z.boolean()).default({}),
   optValues: z.dict(z.number()).default({}),
+  compatCheck: z.boolean().default(true),
+  searchEnabled: z.boolean().default(true),
+  dismissedTips: z.array(z.string()).default([]),
 })

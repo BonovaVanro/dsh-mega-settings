@@ -101,6 +101,42 @@ function Segmented<T extends string>(props: {
   )
 }
 
+/** 提示面板条目（固定 id，用于已读标记；新增提示在此追加）。 */
+const TIPS: { id: string; key: string }[] = [{ id: 'ungrouped-new-section', key: 'tip.ungroupedNewSection' }]
+
+/** 提示面板：只显示未读 tip；右下角「懂你意思」一键全部标为已读；无未读时不渲染。 */
+function TipsPanel(props: {
+  unread: { id: string; key: string }[]
+  onGotIt: () => void
+  tr: (key: string) => string
+}) {
+  if (props.unread.length === 0) return null
+  return (
+    <div className="mgs-tips">
+      <div className="mgs-tips-head">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M8 2a4.5 4.5 0 0 0-2.5 8.2c.5.4.8 1 .9 1.6h3.2c.1-.6.4-1.2.9-1.6A4.5 4.5 0 0 0 8 2z" />
+          <path d="M6 12.5h4" />
+          <path d="M7 15h2" />
+        </svg>
+        <span>{props.tr('tips.title')}</span>
+      </div>
+      <ul className="mgs-tips-list">
+        {props.unread.map((tip) => (
+          <li key={tip.id} className="mgs-tips-item">
+            {props.tr(tip.key)}
+          </li>
+        ))}
+      </ul>
+      <div className="mgs-tips-actions">
+        <button type="button" className="mgs-tips-gotit" onClick={props.onGotIt}>
+          {props.tr('tips.gotit')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function FieldRow(props: { label: string; children: ReactNode }) {
   return (
     <div className="mgs-row">
@@ -747,6 +783,13 @@ export function SettingsCenter(props: SettingsCenterProps) {
   const managedIds = managed.map((m) => m.id)
   const ungroupedRaw = ungroupedIds(managedIds, groups)
   const ungroupedList = orderedUngrouped(ungroupedRaw, ungroupedOrder)
+  /** 提示面板：未读 = 不在 dismissedTips 中的 tip；「懂你意思」把当前展示的全部标为已读 */
+  const dismissedSet = new Set(config.dismissedTips ?? [])
+  const unreadTips = TIPS.filter((tip) => !dismissedSet.has(tip.id))
+  const markTipsRead = (): void => {
+    const next = Array.from(new Set([...(config.dismissedTips ?? []), ...unreadTips.map((tip) => tip.id)]))
+    void scope.set('dismissedTips', next)
+  }
   const [editTarget, setEditTarget] = useState<{ id: string | null; name: string } | null>(null)
 
   const { versions, done } = useVersions()
@@ -1429,7 +1472,16 @@ export function SettingsCenter(props: SettingsCenterProps) {
             />
           </FieldRow>
           {mode === 'fold' ? <p className="mgs-hint">{tr('mode.fold.hint')}</p> : null}
+          <FieldRow label={tr('compat.check')}>
+            <Switch sm checked={config.compatCheck !== false} onChange={(v) => void scope.set('compatCheck', v)} />
+          </FieldRow>
+          <p className="mgs-hint">{tr('compat.check.desc')}</p>
+          <FieldRow label={tr('search.enable')}>
+            <Switch sm checked={config.searchEnabled !== false} onChange={(v) => void scope.set('searchEnabled', v)} />
+          </FieldRow>
+          <p className="mgs-hint">{tr('search.enable.desc')}</p>
         </div>
+        <TipsPanel unread={unreadTips} onGotIt={markTipsRead} tr={tr} />
         {mode === 'collect' ? renderPanels() : null}
       </div>
     </section>

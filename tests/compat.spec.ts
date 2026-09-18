@@ -151,6 +151,6 @@ describe('compat: checkDshPolicy + 提示文案', () => {
     expect(checkDshPolicy('0.1.5', { op: '=', target: '0.1.5-*' })).toBe(false) // 正式版非预发布
     expect(checkDshPolicy('0.1.2-rc.1', { op: '=', target: '0.1.5-*' })).toBe(false)
     expect(checkDshPolicy('0.1.4-alpha.1', { op: '=', target: '0.1.5-*' })).toBe(false)
-    expect(checkDshPolicy('0.1.6-alpha.1', { op: '=', target: '0.1.5-*' })).toBe(false)
+    expect(checkDshPolicy('0.1.6-rc.1', { op: '=', target: '0.1.5-*' })).toBe(false)
   })
 })

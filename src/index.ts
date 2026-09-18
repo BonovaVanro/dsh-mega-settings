@@ -17,7 +17,7 @@ export const inject = ['settings', 'webServer']
  * - 0.1.5-alpha.* 不在本范围（通配 'rc.*' 只命中 rc 预发布），正式版 0.1.5 亦未适配；
  * - 其余版本（含 0.1.2 线）控制台警示，不阻断加载；
  * - 0.1.1-* 维护线由 0.1.1 分支、0.1.2-rc.1 由 0.1.2 分支负责，此处会给出不兼容警示；
- * - 也可改用数组或范围，如 { op: '=', target: ['0.1.5-rc.*', '0.1.6-rc.*'] }。
+ * - 也可改用数组或范围，如 { op: '=', target: ['0.1.5-rc.*'] } 或 { op: '>=', target: '0.1.5-rc.1' }。
  */
 const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.5-rc.*' }
 
@@ -74,21 +74,24 @@ function resolveProfileDir(): string {
 }
 
 export function apply(ctx: Context): void {
-  // dsh 版本兼容校验：检测失败或不合规只打印警示，不阻断插件加载
+  // 自身配置 namespace（浏览器卡片经 settings 槽注册配对，§12 核实项 4/6）
+  const scope = ctx.settings.register('mega-settings', MegaSettingsSchema, {
+    base: defaultConfig,
+    applies: 'live',
+  })
+
+  // dsh 版本兼容校验（mega 系契约：compatCheck 关闭时各 mega 插件跳过校验与提醒；本插件自行读取）
   try {
-    const dshVer = detectDshVersion()
-    if (dshVer !== null && !checkDshPolicy(dshVer, DSCH_COMPAT_POLICY)) {
-      console.warn(dshCompatMessage(name, dshVer))
+    const compat = (scope.get() as { compatCheck?: boolean }).compatCheck
+    if (compat !== false) {
+      const dshVer = detectDshVersion()
+      if (dshVer !== null && !checkDshPolicy(dshVer, DSCH_COMPAT_POLICY)) {
+        console.warn(dshCompatMessage(name, dshVer))
+      }
     }
   } catch {
     /* 校验器自身异常不应影响插件 */
   }
-
-  // 自身配置 namespace（浏览器卡片经 settings 槽注册配对，§12 核实项 4/6）
-  ctx.settings.register('mega-settings', MegaSettingsSchema, {
-    base: defaultConfig,
-    applies: 'live',
-  })
 
   // 包版本 API（卡片版本徽章；webServer 缺席时静默跳过）
   ctx.inject(['webServer'], (scopedCtx) => {

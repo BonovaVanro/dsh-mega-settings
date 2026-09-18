@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.1.5-rc.2-update.2（设置壳对齐官方 · 优化项扩展）
+
+[中文](#cn-v0.1.5-rc.2-update.2) | [English](#en-v0.1.5-rc.2-update.2)
+
+<h3 id="cn-v0.1.5-rc.2-update.2">新增</h3>
+
+- **设置壳对齐官方**：操作列、标题、触发器内容与关闭按钮改为渲染官方 `settings.action` / `settings.header` / `settings.trigger` / `settings.close` 插槽内容——官方内置动作（如「打开配置文件」）与第三方注册者一并生效（此前折叠 / 收纳模式的操作列为空）；
+- **连接状态与首启引导**：触发按钮旁显示官方连接指示器（连接中 / 连接断开 / 已恢复），点击即可立即重连；按官方语义渲染首启引导舞台（`settings.onboarding`），在无会话的新会话首屏逐个展示未读引导步（欢迎须知 / 官方凭据引导），完成即不再重复；
+- **设置搜索**：导航顶部搜索框，按名称实时过滤导航行（可在 mega 设置页关闭）；
+- **兼容性校验开关**：mega 系插件兼容性校验，关闭后各 mega 插件启动时不再校验 dsh 版本并提醒（mega 家族契约，各插件自行读取本值）；
+- **提示面板**：mega 设置页展示未读提示，右下角「懂你意思」一键标记已读（落 `dismissedTips`）；
+- **mega 优化新增**：
+  - **左侧边栏底部动作区布局**：动作区纵向排列；侧栏折叠时动作按钮撑满宽度、动作条目（div）文本居中；
+  - **设置快捷键**：`Ctrl+Shift+S` 打开设置页（拦截浏览器「另存为」）；
+  - **技能中心主题适配**（`@linxin666/dsh-client-ui-skill-explorer`）：面板硬编码色改主题语义色，跟随皮肤；
+- **修复**：官方原生设置分区识别补全——「已归档会话」等官方设置页不再被当作第三方管控项；声明文件可移植性修复（生成的 `.d.ts` 不再引用依赖树私有路径）；**优化效果刷新首帧即生效**（此前会先闪一帧未优化的界面，且宿主配置到达前会先按默认值渲染）；**优化样式标签常驻 `<head>` 末尾**（官方 UI 的 CSS 模块在各自 bundle 求值时注入、位置更靠后，此前会压过我们同特异性的覆盖——全屏透明度、左栏背景透明度、底部动作区等一并受影响）；**接管页的官方组件词条插值失效**（locale 转发丢失 `params`，官方 `translate` 在无参数时直接返回模板原文，导致内置插件页的 `{name}（默认）`、已归档会话的相对时间 `{n}天` 等原样显示）。
+
+**适配说明**：本版同时适配 dsh v0.1.6-alpha.2；alpha 版不纳入兼容声明（在 alpha 版上启动仍会打印版本提示，不影响使用）。
+
+<h3 id="en-v0.1.5-rc.2-update.2">New features</h3>
+
+- **Settings shell aligned with the official one**: the action row, title, trigger content and close button now render the official `settings.action` / `settings.header` / `settings.trigger` / `settings.close` entries — official built-ins (such as "open settings document") and third-party registrants both take effect (the action row used to be empty in Fold / Collect mode);
+- **Connection state & first-run onboarding**: the official connection indicator (connecting / disconnected / recovered) sits next to the trigger and reconnects on click; the onboarding stage (`settings.onboarding`) renders per the official semantics, showing unread first-run steps (welcome notice / official credential) on the new-session screen;
+- **Settings search**: a search box at the top of the nav filters nav rows by name in real time (can be disabled on the mega settings page);
+- **Compatibility self-check toggle**: when off, the mega family plugins stop checking the dsh version and warning on startup (mega family contract; every plugin reads the flag itself);
+- **Tips panel**: the mega settings page lists unread tips and marks them all as read with one click (`dismissedTips`);
+- **New mega Optimize entries**:
+  - **Left sidebar footer actions layout**: stacks the footer actions vertically; while the sidebar is collapsed the buttons go full width and the action entries (div) center their text;
+  - **Settings shortcut**: `Ctrl+Shift+S` opens the settings dialog (intercepts the browser "Save as");
+  - **Skill explorer theme adaptation** (`@linxin666/dsh-client-ui-skill-explorer`): hardcoded panel colors become theme tokens so the panel follows skins;
+- **Fixes**: official native settings sections are now fully recognized — official pages such as "Archived sessions" are no longer treated as third-party managed entries; declaration portability fix (the generated `.d.ts` no longer references a private path in the dependency tree); **optimizations now apply on the first painted frame** (previously an un-optimized frame flashed first, and defaults were rendered before the host settings arrived); **optimize style tags now stay last in `<head>`** (official UI CSS modules are injected later during their own bundle evaluation and used to beat our overrides of equal specificity — fullscreen background transparency, left sidebar background transparency and the footer actions layout were all affected); **locale interpolation broke on taken-over pages** (the locale forwarding dropped `params`, and the official `translate` returns the raw template when no params are given — so `{name}（default）` on the built-in plugins page and relative times such as `{n}天` on the archived sessions page rendered verbatim).
+
+**Compatibility note**: this release also works on dsh v0.1.6-alpha.2; alpha releases are not declared compatible (the startup version notice still prints there and never blocks loading).
 ## 0.1.5-rc.2-update.1（mega 优化扩展）
 
 [中文](#cn-v0.1.5-rc.2-update.1) | [English](#en-v0.1.5-rc.2-update.1)
@@ -27,7 +60,6 @@
 - **Plugin panels**: a GitHub link button next to the panel name (navigates only on click, does not toggle the panel); the version badge sits right after the name;
 - **Polish**: setting names bolded (700) with adjusted sizes/colors; collapse icons and version badges vertically centered.
 
-## 0.1.5-rc.2（新增 mega 优化页）
 ## 0.1.5-rc.2（新增 mega 优化页）
 
 [中文](#cn-v0.1.5-rc.2) | [English](#en-v0.1.5-rc.2)

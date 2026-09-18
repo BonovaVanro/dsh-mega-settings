@@ -48,8 +48,11 @@ export function sortMembers(members: readonly MemberEntry[]): readonly MemberEnt
 
 // ================= v2：管控/分组模型（DESIGN-v2 §3） =================
 
-/** 官方原生设置分区 id（导航中固定开放，不参与管控）。 */
-export const NATIVE_SECTION_IDS = ['general', 'models', 'plugins', 'agent-presets'] as const
+/** 官方原生设置分区 id（导航中固定开放，不参与管控）。
+ *  0.1.6-alpha.2 实测官方注册集与 order：general / models(10) / plugins(15) / agent-presets(20) /
+ *  archived-sessions(25，由 dsh-client-ui-settings-unarchive-sessions 注册)。
+ *  官方新增设置页时需同步此清单，否则会被误判为第三方管控项。 */
+export const NATIVE_SECTION_IDS = ['general', 'models', 'plugins', 'agent-presets', 'archived-sessions'] as const
 
 /** 宿主自身在 settings.section 的 entry id（不参与管控）。 */
 export const HOST_SECTION_ID = 'mega-settings'

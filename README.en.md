@@ -11,7 +11,9 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 - **Groups**: create (type the name right away, Enter to confirm), rename/delete via hover actions on the title, or use the + on the ungrouped row;
 - **Drag & drop** (same in both modes): pointer-drag with the original element following the cursor (no browser ghost), a single dashed slot above/below the hovered row half, FLIP smooth reflow with a judgement lock, and edge auto-scroll;
 - **Native look**: only dsh semantic tokens and official visuals, no theme branches;
-- **mega Optimize**: a hub of optimization toggles for dsh and third-party plugins — rightbar fullscreen zero track / fullscreen background transparency (slider; larger = more transparent) / hide the conversation toolbar in fullscreen; third-party entries get one panel per plugin and are hidden (and not injected) when the plugin is not installed or not enabled; adding an optimization is just appending a registry def;
+- **Settings shell aligned with the official one**: title / trigger / action row (e.g. "open settings document") / close button / first-run onboarding all render the official slot entries, and a broken connection can be reconnected in place; the nav has a search box;
+- **Settings-page switches**: the compatibility self-check (mega family contract) and the nav search box can be turned on or off, and unread tips are dismissed with one click;
+- **mega Optimize**: a hub of optimization toggles for dsh and third-party plugins — rightbar fullscreen zero track / fullscreen background transparency (slider; larger = more transparent) / hide the conversation toolbar in fullscreen / left sidebar footer actions layout / `Ctrl+Shift+S` to open settings; third-party entries get one panel per plugin (dsh-better-sidebar, dsh-cost-meter, skill explorer) and are hidden (and not injected) when the plugin is not installed or not enabled; adding an optimization is just appending a registry def;
 - **Version self-check**: on host startup verifies the current dsh version line and warns in the console when unsupported (never blocks loading).
 
 ## mega Optimize
@@ -22,13 +24,17 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 
 - **Rightbar fullscreen zero track**: forces the grid placeholder track to 0 while the right sidebar is fullscreen so the center column keeps its width (restored correctly on exit/close);
 - **Rightbar fullscreen background transparency**: slider 0-100, larger = more transparent (default 25); re-blends the fullscreen panel background with the current theme color;
-- **Hide conversation toolbar in fullscreen**: hides the conversation header utilities while the right sidebar is fullscreen.
+- **Hide conversation toolbar in fullscreen**: hides the conversation header utilities while the right sidebar is fullscreen;
+- **Left sidebar footer actions layout**: stacks the footer actions vertically; while the sidebar is collapsed the buttons go full width and the action entries center their text;
+- **Settings shortcut**: `Ctrl+Shift+S` opens the settings dialog (intercepts the browser "Save as").
 
 ### Third-party plugins
 
 Each plugin gets its own panel (plugin name + version in the header); **plugins that are not installed or not enabled are hidden and their effects are not injected**. Currently:
 
-- **dsh-better-sidebar**: hide the bottom-panel toggle.
+- **dsh-better-sidebar**: hide the bottom-panel toggle;
+- **dsh-cost-meter**: peak/valley pricing theme adaptation (weekend and peak markers/labels follow the theme; the peak-hour color is selectable: warning / danger / error);
+- **Skill explorer** (`@linxin666/dsh-client-ui-skill-explorer`): panel theme adaptation (hardcoded colors become theme tokens so the panel follows skins).
 
 ### Extensibility
 
@@ -89,19 +95,19 @@ Three sources are supported: npm, GitHub tag, and local package.
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.1
+dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.2
 ```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.1
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.2
 ```
 
 **Local package**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.1.tgz
+dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.2.tgz
 ```
 
 ## Getting started
@@ -109,11 +115,13 @@ dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.1.tgz
 1. Open settings, find mega-settings and switch between **Collect / Fold** (data is shared; switch anytime);
 2. **Collect**: open the hub — cards are third-party settings entries; drop a card into a group or the ungrouped area; hover a group title to rename/delete it; drag group headers to reorder;
 3. **Fold**: open the official settings dialog and expand "Fold" — drag rows to reorder; drag a row to the top nav area to release it as its own entry; drag it back into the fold body to re-host it;
-4. Releasing/re-hosting only changes entry ownership — no configuration is ever deleted.
+4. Releasing/re-hosting only changes entry ownership — no configuration is ever deleted;
+5. Toggle optimizations on the mega Optimize page (rightbar fullscreen, etc.); third-party panels appear only when the plugin is installed and enabled;
+6. The settings nav has a search box; on the mega settings page you can turn the compatibility self-check off, hide the search box, and dismiss unread tips with one click.
 
 ## Supported dsh versions & compatibility
 
-- **Adapted to dsh version: 0.1.5-rc.\*** (the 0.1.5 rc line: rc.1 / rc.2 …; adapted from the dsh v0.1.2-rc.1 → v0.1.5-rc.1 diff);
+- **Adapted to dsh version: 0.1.5-rc.\*** (the 0.1.5 rc line wildcarded: rc.1 / rc.2 …);
 - The dsh 0.1.1-* maintenance line belongs to the 0.1.1 branch release, and the 0.1.2 line to the 0.1.2 branch release;
 - On startup the host self-checks the version policy (default `= 0.1.5-rc.*`); other versions make the console print
   `dsh-mega-settings may not be compatible with dsh <version> — use with caution`, and the plugin still loads;

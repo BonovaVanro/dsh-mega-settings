@@ -330,7 +330,7 @@ export function OptimizeCenter(props: OptimizeCenterProps) {
   const { versions } = useVersions()
   const installed = new Set(Object.keys(versions))
   const { set: activeSections, sig: sectionsSig } = useActiveSections(props.slots)
-  // 效果常驻同步（SettingsShell 亦同步；此处用最新已装 + 已启用集合再校正一次）
+  // 效果常驻同步（client/index.ts 的 apply 常驻同步；此处用最新已装 + 已启用集合再校正一次）
   useEffect(() => {
     syncOptimizeEffects(config, installed, activeSections)
     // eslint-disable-next-line react-hooks/exhaustive-deps
