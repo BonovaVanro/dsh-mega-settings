@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-// 类型增强：slots（runtime）、settingsScope（ui-settings）、locale（locale）
+// 类型增强：slots（runtime）、configForms（ui-settings）、locale（locale）
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -7,7 +7,7 @@ import type { SettingsCenterInjected } from './SettingsCenter.tsx'
 import { SettingsShell } from './SettingsShell.tsx'
 import { memberLabel, type MemberEntry, type SectionEntry } from './pure.ts'
 import { zh, en } from './locales.ts'
-import type { MegaSettingsConfig } from '../schema.ts'
+import type { MegaSettingsConfig, SettingsPathOpView } from '../schema.ts'
 import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID } from './seats.ts'
 import { forwardTranslate, type MiniSlots } from './mini.tsx'
 import { OptimizeCenter } from './OptimizeCenter.tsx'
@@ -19,7 +19,7 @@ export { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID }
 declare const MGS_VERSION: string
 
 export const name = 'dsh-mega-settings'
-export const inject = ['slots', 'settingsScope', 'locale', 'sessions']
+export const inject = ['slots', 'configForms', 'locale', 'sessions']
 
 /* 刷新首帧即生效（FOUC 修复）：模块求值阶段（React 渲染前、官方 settings 快照到达前）
  * 先按本地镜像注入优化效果，避免「先看到未优化的一帧、再跳变成优化后」；
@@ -212,14 +212,199 @@ function mountShell(
   return slots.inject('sidebar.settings', () => slots.register(options, SettingsShell))
 }
 
+/**
+ * 乐观写 scope：宿主 configEditor 写入 = 写盘 + 全量 reconcile（约 1.5s），直接等回折会让
+ * UI 明显卡顿。这里先本地覆盖 pending 字段即时生效，宿主确认（form 快照该字段等于 pending）
+ * 后摘下。所有 scope 消费方均为 force-update 风格，快照身份不敏感。
+ */
+interface ScopeFormLike {
+  getSnapshot(): { value?: MegaSettingsConfig | undefined }
+  subscribe(fn: () => void): () => void
+  set(field: string, value: unknown): Promise<boolean>
+  unset(field: string): Promise<boolean>
+  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<boolean>
+}
+
+/** 乐观写穿缓存：宿主写盘有 ~1.5s reconcile 延迟，快速刷新会打断写入而丢失。
+ *  把「尚未被宿主确认」的乐观意图写进 localStorage，刷新后先从缓存恢复（秒显），
+ *  并自动重提交宿主（最终落盘），宿主确认后摘下。 */
+const OPTIMISTIC_CACHE_KEY = 'dsh-mega-settings.optimistic.v1'
+
+function readOptimisticCache(): Record<string, unknown> {
+  try {
+    const raw = localStorage.getItem(OPTIMISTIC_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeOptimisticCache(pending: Record<string, unknown>): void {
+  try {
+    if (Object.keys(pending).length === 0) localStorage.removeItem(OPTIMISTIC_CACHE_KEY)
+    else localStorage.setItem(OPTIMISTIC_CACHE_KEY, JSON.stringify(pending))
+  } catch {
+    /* localStorage 不可用时忽略（写穿仅增强，不影响功能） */
+  }
+}
+
+function optimisticScope(form: ScopeFormLike): SettingsCenterInjected['scope'] {
+  let pending: Record<string, unknown> = readOptimisticCache()
+  const listeners = new Set<() => void>()
+  /** 每个顶层字段的「未落定写入」代次计数：>0 表示该字段还有防抖等待或请求在途的宿主写入。
+   *  reconcile 不摘这类字段的覆盖——否则快速连点期间宿主逐个确认中间值会把覆盖过早摘下，
+   *  造成 UI 在 true/false 之间缓慢翻转。 */
+  const dirtyGen = new Map<string, number>()
+  /** 每字段防抖定时器：快速连点合并为一次宿主写入（避免宿主逐个处理整串 T→F→T→F）。 */
+  const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  const writeP = new Map<string, Promise<unknown>>()
+  const DEBOUNCE_MS = 400
+
+  const notify = (): void => {
+    for (const fn of Array.from(listeners)) {
+      try {
+        fn()
+      } catch {
+        /* 单个订阅者异常不影响 */
+      }
+    }
+  }
+  const eq = (a: unknown, b: unknown): boolean => (a === b) || JSON.stringify(a) === JSON.stringify(b)
+  const persist = (): void => writeOptimisticCache(pending)
+  const reconcile = (): void => {
+    const base = form.getSnapshot().value
+    if (!base) return
+    let changed = false
+    for (const k of Object.keys(pending)) {
+      if ((dirtyGen.get(k) ?? 0) > 0) continue // 该字段写入未落定：保留覆盖
+      if (eq((base as unknown as Record<string, unknown>)[k], pending[k])) {
+        delete pending[k]
+        changed = true
+      }
+    }
+    if (changed) {
+      persist()
+      notify()
+    }
+  }
+
+  /** 落盘一个字段的最新意图：防抖合并快速连点；触发时读 pending 里该字段的最新值写宿主。 */
+  const scheduleWrite = (field: string): Promise<unknown> => {
+    dirtyGen.set(field, (dirtyGen.get(field) ?? 0) + 1)
+    const old = timers.get(field)
+    if (old !== undefined) clearTimeout(old)
+    const p = new Promise<unknown>((resolve) => {
+      const timer = setTimeout(() => {
+        timers.delete(field)
+        const has = field in pending
+        const w = has ? form.set(field, pending[field]) : form.unset(field)
+        w.then((ok) => {
+          const n = dirtyGen.get(field) ?? 0
+          if (n <= 1) dirtyGen.delete(field)
+          else dirtyGen.set(field, n - 1)
+          reconcile()
+          resolve(ok)
+          return ok
+        })
+      }, DEBOUNCE_MS)
+      timers.set(field, timer)
+    })
+    writeP.set(field, p)
+    return p
+  }
+
+  // 初始化重放：上次未确认的写入（可能被快速刷新打断）重新提交宿主，确认后由 reconcile 摘下
+  for (const field of Object.keys(pending)) scheduleWrite(field)
+
+  return {
+    getSnapshot: () => {
+      const base = form.getSnapshot().value
+      if (!base) return { value: undefined }
+      const keys = Object.keys(pending)
+      if (keys.length === 0) return { value: base }
+      const merged = { ...base } as unknown as Record<string, unknown>
+      for (const k of keys) merged[k] = pending[k]
+      return { value: merged as unknown as MegaSettingsConfig }
+    },
+    subscribe: (fn: () => void): (() => void) => {
+      listeners.add(fn)
+      const off = form.subscribe(() => {
+        reconcile()
+        notify()
+      })
+      return () => {
+        listeners.delete(fn)
+        off()
+      }
+    },
+    set: (field: string, value: unknown): Promise<unknown> => {
+      pending[field] = value
+      persist()
+      notify()
+      return scheduleWrite(field)
+    },
+    unset: (field: string): Promise<unknown> => {
+      delete pending[field]
+      persist()
+      notify()
+      return scheduleWrite(field)
+    },
+    // 路径级写入：先按路径合并到 pending 顶层字段（即时生效），再按字段防抖合并落盘。
+    // 逐个字段 merge，避免整对象读-改-写竞争（连点两个开关互相覆盖）。
+    mutate: (ops: readonly SettingsPathOpView[], _expectedRevision?: number): Promise<unknown> => {
+      const base = form.getSnapshot().value
+      const touched = new Set<string>()
+      for (const op of ops) {
+        if (op.path.length === 0) continue
+        const [field, ...rest] = op.path
+        touched.add(field)
+        const current = field in pending ? pending[field] : (base as unknown as Record<string, unknown> | undefined)?.[field]
+        if (op.op === 'set') pending[field] = rest.length === 0 ? op.value : applyPath(current, rest, op.value)
+        else if (op.op === 'unset') pending[field] = removePath(current, rest)
+      }
+      persist()
+      notify()
+      const ps: Promise<unknown>[] = []
+      for (const f of touched) ps.push(scheduleWrite(f))
+      return ps.length > 0 ? Promise.all(ps).then(() => true) : Promise.resolve(true)
+    },
+  }
+}
+
+/** 在 obj 上按 path 设值（浅克隆，创建中间对象）；path 空 = 直接返回 value。 */
+function applyPath(obj: unknown, path: string[], value: unknown): unknown {
+  if (path.length === 0) return value
+  const [head, ...rest] = path
+  const source = obj !== null && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, unknown>) : {}
+  const copy: Record<string, unknown> = { ...source }
+  copy[head] = applyPath(source[head], rest, value)
+  return copy
+}
+
+/** 在 obj 上按 path 删除键（浅克隆）；path 空 = 返回 undefined。 */
+function removePath(obj: unknown, path: string[]): unknown {
+  if (path.length === 0) return undefined
+  const [head, ...rest] = path
+  const source = obj !== null && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, unknown>) : {}
+  const copy: Record<string, unknown> = { ...source }
+  if (rest.length === 0) delete copy[head]
+  else copy[head] = removePath(source[head], rest)
+  return copy
+}
+
 export function apply(ctx: Context): void {
   // 词条（§8：zh/en 全量登记；M4 起改类型化 register + LocaleNamespaceMap 合并）
   ctx.locale.register('mega-settings', 'zh', zh)
   ctx.locale.register('mega-settings', 'en', en)
   const t = ctx.locale.bind('mega-settings')
 
-  // 自身配置 scope（组件渲染用；mode/entry 驱动挂载迁移）
-  const scope = ctx.settingsScope.bind<MegaSettingsConfig>({ namespace: 'mega-settings' })
+  // 0.1.7：自身配置经 ConfigForm 读取/写入（ns = profile entry id）；scope 面与旧 settingsScope 兼容。
+  // 用乐观包装消除宿主写延迟（写盘 + 全量 reconcile 约 1.5s）：点击先本地生效，宿主确认后摘下。
+  const scope = optimisticScope(ctx.configForms.get<MegaSettingsConfig>('ui-mega-settings'))
 
   // 优化效果常驻同步（不依赖 React 挂载时机）：配置 / settings.section / 已装版本变化即校正。
   // 宿主快照未就绪（client 镜像 idle）时沿用本地镜像而非默认值——否则会把首帧注入的

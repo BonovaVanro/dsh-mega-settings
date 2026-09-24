@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.1.7-rc.1（适配 dsh v0.1.7-rc.* · 设置模型重构）
+
+[中文](#cn-v0.1.7-rc.1) | [English](#en-v0.1.7-rc.1)
+
+<h3 id="cn-v0.1.7-rc.1">适配与变更</h3>
+
+- **适配 dsh v0.1.7（设置/配置模型破坏性变更）**：
+  - 设置由插件导出的 `Config` schema 派生（不再 `ctx.settings.register`）；宿主 `apply(ctx, config)` 第二参读自身配置；命名空间 = profile entry id（配置承载于 patch entry config 段）；
+  - 客户端读写改用 `ctx.configForms.get(entryId)`（替代 `settingsScope`）；仅 **volatile** 字段可实时写入（schema 整对象 `.volatile()`，schemastery ^3.18.3）；
+  - 写入统一走 `mutate` 路径级（`{op:'set', path:[...], value}`），避免整对象读-改-写竞争（快速连点开关不再互相覆盖）；
+  - **乐观写 + localStorage 写穿 + 初始化重放**：宿主 reconcile 约 1.5s，快速刷新也能保住改动并自动重提交落盘；
+  - primitives 图标改名适配（`IconXxxOutline16/14` → `OutlineMedium/Regular`，否则渲染 undefined 崩溃）；
+  - 声明文件可移植性（TS2742）：schema 推断类型收窄为自身接口；
+  - 依赖/运行时 **0.1.7-rc.1** 正式化（alpha.2 → rc.1 无 API 破坏）；兼容策略 `0.1.7-rc.*` 命中，启动不再打印「可能不适配」；
+  - 快速连点配置翻转适配：乐观写按顶层字段**防抖合并**（~400ms，一次只发最终值）+ **dirty 代次门控**（字段仍有未落定写入时保留覆盖），杜绝中间值回显造成的 true/false 缓慢翻转；
+  - 全屏收起残留变暗适配：「全屏背景透明度」改为只作用于全屏面板内的 dock 内容区（`[data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] > section`），收起后 dock 区随之消失、无残留遮罩；
+  - **mega 家族公共兼容开关（mega.json）**：mega-settings 作为家长直接读写 `$DSH_HOME/mega.json` 的 `compatCheck`（一处关闭、全体 mega 插件静音，经 host API 桥）；读取契约「自身显式 → 家族公共 → 缺省 true」；`compatCheck` 字段**无默认值**（三态命门，未设才能读到家族层）+ 整对象 volatile 的 config 需解包 `.get()`。
+  - **落点位置粘性**：拖拽时指针仍在导航列内，落点不消失（行上/下半区槽位可稳定落位）；
+  - **乐观顺序 + FLIP 首帧播种**：放置不再「先复位再滑到目标槽」闪烁，源行从光标直接滑入槽位、其余行平滑让位；
+  - 开关/滑块改路径级写入，连点不再互相覆盖。
+- **新增优化**：正文编辑文件预览背景透明度（`dsh.editorFilePreviewBgAlpha`，dsh 一般区）——文件预览卡片背景混合为主题 layer-1 半透明（`._preview_178vx_56`，web-shell hash 类，升级 dsh 后需复核；0.1.7-alpha.1 曾为 `_preview_1nod8_56`）。
+
+<h3 id="en-v0.1.7-rc.1">Adaptation & changes</h3>
+
+- **Adapted to dsh v0.1.7 (breaking settings/config model)**:
+  - Settings are now derived from the plugin's exported `Config` schema (no more `ctx.settings.register`); the host reads its config from the `apply(ctx, config)` second argument; the namespace is the profile entry id (config lives in the patch entry's config section);
+  - Client read/write now uses `ctx.configForms.get(entryId)` (replaces `settingsScope`); only **volatile** fields can be written live (whole-object `.volatile()`, schemastery ^3.18.3);
+  - Writes go through `mutate` path ops (`{op:'set', path:[...], value}`) to avoid whole-object read-modify-write races (rapid consecutive toggles no longer overwrite each other);
+  - **Optimistic writes + localStorage write-through + replay on init**: survives a quick refresh even though the host reconcile takes ~1.5s, and re-submits pending writes automatically;
+  - Primitives icon rename adapted (`IconXxxOutline16/14` → `OutlineMedium/Regular`, otherwise React #130);
+  - Declaration portability (TS2742): the schema's inferred type is narrowed to the plugin's own interface;
+  - Dependencies/runtime formalized at **0.1.7-rc.1** (no API break from alpha.2); the compat policy `0.1.7-rc.*` now matches, so no more "may not be compatible" warning at startup;
+  - **Rapid-toggle adaptation**: optimistic writes are now debounced per top-level field (~400ms, only the final value is sent) plus a dirty-generation gate (the optimistic overlay is kept while the field still has unsettled writes), eliminating the slow true/false cycling caused by intermediate values being echoed back;
+  - **Fullscreen-collapse adaptation**: "Fullscreen background transparency" now targets only the dock content section inside the fullscreen panel (`[data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] > section`), so collapsing removes the dock and no residual mask remains;
+  - **mega-family shared compat switch (mega.json)**: mega-settings, as the family host, reads/writes `compatCheck` in `$DSH_HOME/mega.json` directly (one switch mutes the whole mega family; bridged via a host API). Read contract: own config → family file → default true. The `compatCheck` field has **no default** (the three-state crux, so "unset" can reach the family layer) and whole-object-volatile configs must be unwrapped via `.get()`. (Contract documented in mega-plugin-guide 09-version-check.)
+- **Drag & drop / drop-target optimizations**:
+  - **Sticky drop targets**: while dragging, the target stays visible as long as the pointer is inside the nav column, so you can reliably land on a row's upper/lower slot;
+  - **Optimistic ordering + FLIP first-frame seeding**: dropping no longer flashes "snap back then slide" — the dragged row slides from the cursor into its slot while the others ease aside;
+  - Toggles/sliders now use path-based writes so rapid consecutive clicks no longer clobber each other.
+- **New optimization**: file preview background transparency in the main editor (`dsh.editorFilePreviewBgAlpha`, general dsh group) — the preview card background blends the theme layer-1 color (`._preview_178vx_56`, web-shell hash class, re-check on dsh upgrades; was `_preview_1nod8_56` in 0.1.7-alpha.1).
+
 ## 0.1.5-rc.2-update.2（设置壳对齐官方 · 优化项扩展）
 
 [中文](#cn-v0.1.5-rc.2-update.2) | [English](#en-v0.1.5-rc.2-update.2)

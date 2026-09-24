@@ -1,25 +1,31 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-settings'
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import os from 'node:os'
-import { MegaSettingsSchema, defaultConfig } from './schema.ts'
+import { MegaSettingsSchema } from './schema.ts'
+import type { MegaSettingsConfig } from './schema.ts'
 import { checkDshPolicy, dshCompatMessage, type DshCompatPolicy } from './compat.ts'
+import { compatCheckEnabled, megaFamilyConfigPath, readFamilyCompatCheck } from './mega-family.ts'
 
 export const name = 'dsh-mega-settings'
-export const inject = ['settings', 'webServer']
+export const inject = ['webServer']
 
 /**
- * dsh 版本兼容策略：锁定 dsh-v0.1.5 rc 线（'= 0.1.5-rc.*'）。
- * - rc 线（rc.1 / rc.2 …）对本插件所依赖的 settings / slots / locale 契约一致，
- *   无需业务代码迁移；
- * - 0.1.5-alpha.* 不在本范围（通配 'rc.*' 只命中 rc 预发布），正式版 0.1.5 亦未适配；
- * - 其余版本（含 0.1.2 线）控制台警示，不阻断加载；
- * - 0.1.1-* 维护线由 0.1.1 分支、0.1.2-rc.1 由 0.1.2 分支负责，此处会给出不兼容警示；
- * - 也可改用数组或范围，如 { op: '=', target: ['0.1.5-rc.*'] } 或 { op: '>=', target: '0.1.5-rc.1' }。
+ * 插件 Config schema（0.1.7 起）：settings 命名空间/表单由插件导出的 Config 派生，
+ * 不再经 ctx.settings.register 注册。加载器会据此校验 settings 里对应命名空间的配置。
  */
-const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.5-rc.*' }
+export const Config = MegaSettingsSchema
+
+/**
+ * dsh 版本兼容策略：0.1.7 分支锁定 dsh-v0.1.7 rc 线（'= 0.1.7-rc.*'）。
+ * - 0.1.7-alpha 统一不声明兼容（alpha 线仍会打印「可能不适配」提示，属设计）；
+ * - 其余版本（含 0.1.5/0.1.6 线，因设置模型已重构）控制台警示，不阻断加载；
+ * - 维护旧线请用对应分支（0.1.1/0.1.2/0.1.5-rc.2 的发布版本）；
+ * - 也可改用数组或范围，如 { op: '=', target: ['0.1.7-rc.*'] } 或 { op: '>=', target: '0.1.7-rc.1' }。
+ */
+const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.7-rc.*' }
 
 const dshRequire = createRequire(import.meta.url)
 
@@ -73,17 +79,15 @@ function resolveProfileDir(): string {
   return join(os.homedir(), '.dsh', 'profiles', 'web')
 }
 
-export function apply(ctx: Context): void {
-  // 自身配置 namespace（浏览器卡片经 settings 槽注册配对，§12 核实项 4/6）
-  const scope = ctx.settings.register('mega-settings', MegaSettingsSchema, {
-    base: defaultConfig,
-    applies: 'live',
-  })
+export function apply(ctx: Context, config?: MegaSettingsConfig): void {
+  // 0.1.7 起：自身配置由插件 Config 派生，经 apply 第二参注入（不是 ctx.config——那需要 inject 守卫且会等 service）
 
-  // dsh 版本兼容校验（mega 系契约：compatCheck 关闭时各 mega 插件跳过校验与提醒；本插件自行读取）
+  // dsh 版本兼容校验（mega 系契约：compatCheck 关闭时各 mega 插件跳过校验与提醒；本插件自行读取）。
+  // 优先级：自身 config.compatCheck → 家族公共配置 $DSH_HOME/mega.json → 缺省 true。
+  // 注：不能用 `config?.compatCheck !== false` —— schema 有 .default(true)，
+  // 未设置时该式恒为 true，会让家族公共开关永远失效。
   try {
-    const compat = (scope.get() as { compatCheck?: boolean }).compatCheck
-    if (compat !== false) {
+    if (compatCheckEnabled(config)) {
       const dshVer = detectDshVersion()
       if (dshVer !== null && !checkDshPolicy(dshVer, DSCH_COMPAT_POLICY)) {
         console.warn(dshCompatMessage(name, dshVer))
@@ -121,5 +125,61 @@ export function apply(ctx: Context): void {
       })
       return () => (route as { dispose?: () => void } | undefined)?.dispose?.() ?? (route as () => void | undefined)?.()
     }, 'dsh-mega-settings: versions api')
+
+    // 家族公共开关（$DSH_HOME/mega.json）：mega-settings 作为家长直接读写家族开关。
+    // GET → { compatCheck: boolean | null }（null = 未配置 → 缺省开启校验）；
+    // POST { compatCheck: boolean } → 写家族文件；POST { compatCheck: null } → 删除文件（回默认）。
+    const familyRoute = ws.register({
+      kind: 'exact',
+      path: '/api/dsh-mega-settings/family-compat',
+      handler: (req: { method?: string; on?: (ev: string, cb: (c: Buffer) => void) => unknown }, res: {
+        writeHead(code: number, headers?: Record<string, string>): void
+        end(body?: string): void
+      }) => {
+        if (req.method === 'GET') {
+          const compat = readFamilyCompatCheck()
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache',
+          })
+          res.end(JSON.stringify({ compatCheck: compat ?? null }))
+          return
+        }
+        if (req.method === 'POST') {
+          const chunks: Buffer[] = []
+          req.on?.('data', (c) => chunks.push(c))
+          req.on?.('end', () => {
+            let value: unknown = null
+            try {
+              value = (JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>).compatCheck ?? null
+            } catch {
+              value = null
+            }
+            try {
+              const file = megaFamilyConfigPath()
+              if (value === null) {
+                if (existsSync(file)) rmSync(file, { force: true })
+              } else {
+                mkdirSync(dirname(file), { recursive: true })
+                writeFileSync(file, JSON.stringify({ compatCheck: Boolean(value) }, null, 2), 'utf8')
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' })
+              res.end(JSON.stringify({ ok: true, compatCheck: value === null ? null : Boolean(value) }))
+            } catch (error) {
+              res.writeHead(500, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ ok: false, error: String(error) }))
+            }
+          })
+          return
+        }
+        res.writeHead(405)
+        res.end('method not allowed')
+      },
+    })
+    scoped.effect(() => () => {
+      const dispose = (familyRoute as { dispose?: () => void } | undefined)?.dispose
+      if (typeof dispose === 'function') dispose()
+    }, 'dsh-mega-settings: family-compat api')
   })
 }

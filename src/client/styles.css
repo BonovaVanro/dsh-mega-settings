@@ -93,7 +93,11 @@
 
 /* 分组拖拽排序：组间插入条 */
 .mgs-group-strip {
+  /* 落点插入条是 .mgs-body（flex column）的直接子元素：必须 flex:none，
+     否则 height 会被 flex-shrink 压到接近 0（实测 10px → 2px），落点看不见 */
+  flex: none;
   height: 10px;
+  min-height: 10px;
   border-radius: 6px;
   background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.16));
   transition: background 100ms ease;
@@ -103,6 +107,8 @@
 }
 /* 分组拖拽容器（静态时无额外样式） */
 .mgs-group-drag {
+  /* 同样是 .mgs-body 的 flex 子元素：不参与收缩，避免内容超高时面板被压扁 */
+  flex: none;
   min-width: 0;
 }
 

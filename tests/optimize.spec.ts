@@ -26,10 +26,10 @@ describe('optimize: 注册表完整性', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('dsh 组 + plugin 组并存（dsh 组当前 15 项）', () => {
+  it('dsh 组 + plugin 组并存（dsh 组当前 16 项）', () => {
     const dsh = optimizeByGroup('dsh')
     const plugin = optimizeByGroup('plugin')
-    expect(dsh.length).toBe(15)
+    expect(dsh.length).toBe(16)
     expect(plugin.length).toBeGreaterThan(0)
     expect(OPTIMIZE_DEFS.map((d) => d.group)).toEqual([
       ...dsh.map(() => 'dsh' as const),

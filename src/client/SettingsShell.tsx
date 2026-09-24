@@ -39,12 +39,12 @@ import { MEMBER_PAGE_SEAT } from './seats.ts'
 import { MiniSectionContent, MiniSlotContent, type MiniSlots } from './mini.tsx'
 import {
   ConnectionIndicator,
-  IconAgentPresetOutline16,
-  IconCloseOutline16,
-  IconDataOutline16,
-  IconPersonalizationOutline16,
-  IconSettingsOutline14,
-  IconSettingsOutline16,
+  IconAgentPresetOutlineMedium,
+  IconCloseOutlineMedium,
+  IconDataOutlineMedium,
+  IconPersonalizationOutlineMedium,
+  IconSettingsOutlineRegular,
+  IconSettingsOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsCenter, type SettingsCenterInjected } from './SettingsCenter.tsx'
 
@@ -237,13 +237,13 @@ ensureOfficialCss()
 function navIconOf(id: string): ReactNode {
   switch (id) {
     case 'models':
-      return <IconDataOutline16 size={16} />
+      return <IconDataOutlineMedium size={16} />
     case 'agent-presets':
-      return <IconAgentPresetOutline16 size={16} />
+      return <IconAgentPresetOutlineMedium size={16} />
     case 'plugins':
-      return <IconPersonalizationOutline16 size={16} />
+      return <IconPersonalizationOutlineMedium size={16} />
     default:
-      return <IconSettingsOutline16 size={16} />
+      return <IconSettingsOutlineMedium size={16} />
   }
 }
 /** 折叠设置行的收纳图标（自绘 folder；新元素才允许自命名/自绘）。 */
@@ -729,6 +729,7 @@ export function SettingsShell(props: ShellProps) {
   const setOverState = (t: OverTarget): void => {
     const prev = overRef.current
     if (prev === t) return
+    // 同槽位去重：nav 同 o / body 同 lid+o → 不重渲染
     if (
       prev !== null &&
       t !== null &&
@@ -740,8 +741,52 @@ export function SettingsShell(props: ShellProps) {
     overRef.current = t
     setOver(t)
   }
+
+  /**
+   * 乐观顺序覆盖：拖拽提交先落到本地（与 setDrag(null) 同一次渲染），宿主确认后摘下。
+   * scope.set 是异步（host 往返）：若等配置落地再重排，落点瞬间会先按旧顺序渲染一帧
+   * （源行回到原位），随后 FLIP 从原位滑到目标槽 —— 即“先复位再滑过去”的闪烁。
+   */
+  const [optimistic, setOptimistic] = useState<{
+    navOrder?: string[]
+    groups?: SettingsGroup[]
+    ungroupedOrder?: string[]
+  } | null>(null)
+  const applyOrder = (patch: {
+    navOrder?: string[]
+    groups?: SettingsGroup[]
+    ungroupedOrder?: string[]
+  }): void => {
+    setOptimistic((prev) => ({ ...(prev ?? {}), ...patch }))
+    if (patch.navOrder !== undefined) void scope.set('navOrder', patch.navOrder)
+    if (patch.groups !== undefined) void scope.set('groups', patch.groups)
+    if (patch.ungroupedOrder !== undefined) void scope.set('ungroupedOrder', patch.ungroupedOrder)
+  }
+  /** 宿主配置确认（与乐观值一致）→ 摘下覆盖（值相同，无布局变化）；写失败/往返异常 → 1s 兜底回退 */
+  useEffect(() => {
+    if (optimistic === null) return
+    const sameArr = (a: readonly unknown[] | undefined, b: readonly unknown[] | undefined): boolean =>
+      a === undefined || (b !== undefined && a.length === b.length && a.every((x, i) => x === b[i]))
+    const ok =
+      sameArr(optimistic.navOrder, config.navOrder) &&
+      sameArr(
+        optimistic.groups?.map((g) => g.id),
+        (config.groups ?? []).map((g) => g.id),
+      ) &&
+      sameArr(optimistic.ungroupedOrder, config.ungroupedOrder)
+    if (ok) {
+      setOptimistic(null)
+      return
+    }
+    const t = window.setTimeout(() => setOptimistic(null), 1000)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optimistic, config])
+
   const mode: ControlMode = config.mode ?? 'collect'
-  const groups = config.groups ?? []
+  const effGroups = optimistic?.groups ?? config.groups
+  const effUngroupedOrder = optimistic?.ungroupedOrder ?? config.ungroupedOrder
+  const groups = effGroups ?? []
 
   /* ---------- FLIP：落点框插入/移除与提交重排时，其余导航行平滑让位（跟手源行不参与） ---------- */
   useLayoutEffect(() => {
@@ -834,7 +879,7 @@ export function SettingsShell(props: ShellProps) {
     const live = new Set(managedRows.map((r) => r.id))
     const refs = new Set<string>()
     for (const g of groups) for (const id of g.itemIds) refs.add(id)
-    for (const id of config.ungroupedOrder ?? []) refs.add(id)
+    for (const id of effUngroupedOrder ?? []) refs.add(id)
     for (const id of navArrayIds) if (!nativeSet.has(id)) refs.add(id) // 原生行恒在，不记录存在性
     const prev = config.pluginExists ?? {}
     const next: Record<string, boolean> = {}
@@ -857,9 +902,8 @@ export function SettingsShell(props: ShellProps) {
   const nativeSet = new Set<string>(NATIVE_SECTION_IDS)
   /** navOrder 数组段（不含入口保留 id）：释放的管控行 + 被拖入的原生行（原生默认在外，拖入后纳管） */
   const cfgHasNav = Object.prototype.hasOwnProperty.call(config, 'navOrder')
-  const navArrayIds = (cfgHasNav ? config.navOrder ?? [] : config.managedExcluded ?? []).filter(
-    (id) => id !== NAV_HUB_ID,
-  )
+  const effNavOrder = optimistic?.navOrder ?? (cfgHasNav ? config.navOrder ?? [] : config.managedExcluded ?? [])
+  const navArrayIds = effNavOrder.filter((id) => id !== NAV_HUB_ID)
   /** released = 数组段中的第三方管控 id（原生 id 不在其列） */
   const releasedArr = navArrayIds.filter((id) => !nativeSet.has(id))
   const releasedSet = new Set(releasedArr)
@@ -890,7 +934,7 @@ export function SettingsShell(props: ShellProps) {
 
   /** 接管数组（折叠/收纳共享）——未分组条目：全部未分组（含 released，供收纳页用） */
   const ungroupedRawAll = ungroupedIds(managedRows.map((r) => r.id), groups)
-  const ungroupedFull = orderedUngrouped(ungroupedRawAll, config.ungroupedOrder ?? [])
+  const ungroupedFull = orderedUngrouped(ungroupedRawAll, effUngroupedOrder ?? [])
   const ungroupedVisible = ungroupedFull.filter((id) => !releasedSet.has(id))
   /** 折叠体可见列表（released 行隐藏，但保留在接管数组中） */
   const visibleOf = (ids: readonly string[]): NavRowLike[] =>
@@ -1002,7 +1046,7 @@ export function SettingsShell(props: ShellProps) {
 
   /* ---------- 提交 ---------- */
   const writeNavOrder = (custom: string[]): void => {
-    void scope.set('navOrder', [...custom, NAV_HUB_ID])
+    applyOrder({ navOrder: [...custom, NAV_HUB_ID] })
   }
   const sameList = (a: readonly string[], b: readonly string[]): boolean =>
     a.length === b.length && a.every((x, i) => x === b[i])
@@ -1025,23 +1069,22 @@ export function SettingsShell(props: ShellProps) {
     const groupsNext = groups.map((g) =>
       g.itemIds.includes(id) ? { ...g, itemIds: g.itemIds.filter((x) => x !== id) } : g,
     )
-    const orderBase = (config.ungroupedOrder ?? []).filter((x) => x !== id)
-    let orderNext: string[] | null = null
+    const orderBase = (effUngroupedOrder ?? []).filter((x) => x !== id)
+    const patch: { groups?: SettingsGroup[]; ungroupedOrder?: string[] } = { groups: groupsNext }
     if (isU) {
       const raw = ungroupedIds(managedRows.map((r) => r.id), groupsNext)
       const fullU = expandUngroupedOrder(orderBase, raw)
       const hiddenU = (x: string): boolean =>
         releasedSet.has(x) || !managedById.has(x) || groupOf(x, groupsNext) !== null
-      orderNext = placeVisible(fullU, hiddenU, id, slot)
+      patch.ungroupedOrder = placeVisible(fullU, hiddenU, id, slot)
     } else {
       const g2 = groupsNext.find((x) => x.id === lid)
       if (!g2) return
       const res = placeVisible(g2.itemIds, (x) => releasedSet.has(x) || !managedById.has(x), id, slot)
       groupsNext.splice(groupsNext.findIndex((x) => x.id === lid), 1, { ...g2, itemIds: res })
-      if (!arrEq(orderBase, config.ungroupedOrder ?? [])) orderNext = orderBase
+      if (!arrEq(orderBase, effUngroupedOrder ?? [])) patch.ungroupedOrder = orderBase
     }
-    void scope.set('groups', groupsNext)
-    if (orderNext !== null) void scope.set('ungroupedOrder', orderNext)
+    applyOrder(patch)
   }
   const commitTakeover = (lid: string, id: string, slot: number): void => {
     const isU = lid === UNGROUPED_GID
@@ -1052,27 +1095,27 @@ export function SettingsShell(props: ShellProps) {
     const groupsNext = groups.map((g) =>
       g.itemIds.includes(id) ? { ...g, itemIds: g.itemIds.filter((x) => x !== id) } : g,
     )
-    const orderBase = (config.ungroupedOrder ?? []).filter((x) => x !== id)
-    let orderNext: string[] | null = null
+    const orderBase = (effUngroupedOrder ?? []).filter((x) => x !== id)
+    const patch: { navOrder?: string[]; groups?: SettingsGroup[]; ungroupedOrder?: string[] } = {
+      groups: groupsNext,
+    }
     if (isU) {
       const raw = ungroupedIds(managedRows.map((r) => r.id), groupsNext)
       // 存储全集（含缺失项墓碑）→ 按折叠可见槽落点；缺失/已释放/在组条目不入可见计数
       const fullU = expandUngroupedOrder(orderBase, raw)
       const hiddenU = (x: string): boolean =>
         releasedSet.has(x) || !managedById.has(x) || groupOf(x, groupsNext) !== null
-      orderNext = placeVisible(fullU, hiddenU, id, slot)
+      patch.ungroupedOrder = placeVisible(fullU, hiddenU, id, slot)
     } else {
       const g2 = groupsNext.find((x) => x.id === lid)
       if (!g2) return
       const res = placeVisible(g2.itemIds, (x) => releasedSet.has(x) || !managedById.has(x), id, slot)
       groupsNext.splice(groupsNext.findIndex((x) => x.id === lid), 1, { ...g2, itemIds: res })
-      if (!arrEq(orderBase, config.ungroupedOrder ?? [])) orderNext = orderBase
+      if (!arrEq(orderBase, effUngroupedOrder ?? [])) patch.ungroupedOrder = orderBase
     }
-    // 2) 状态 true：navOrder 移除
-    writeNavOrder(navNext)
-    // 3) 接管数组写回
-    void scope.set('groups', groupsNext)
-    if (orderNext !== null) void scope.set('ungroupedOrder', orderNext)
+    // 2) 状态 true：navOrder 移除（乐观写入，与 drag 清空同一次渲染）
+    patch.navOrder = [...navNext, NAV_HUB_ID]
+    applyOrder(patch)
   }
   const commitDrop = (d: NonNullable<ShellDrag>, t: NonNullable<OverTarget>): void => {
     // 原生行只能参与顶区数组排序；不可拖入折叠体（非管控对象）
@@ -1106,7 +1149,18 @@ export function SettingsShell(props: ShellProps) {
       return
     }
     const tg = targetAt(x, y, el)
-    setOverState(tg)
+    if (tg !== null) {
+      setOverState(tg)
+      return
+    }
+    // 粘性落点：targetAt 判不出落点（指针落在行间空隙/插入条附近、或暂时未命中行）
+    // 但指针仍停留在导航列内时，保留当前落点不消失——这样能把拖拽“落”到行上/下半区的
+    // 槽位上；只有离开导航列（或悬停折叠设置头行）才清空。松手时 endRowDrag 仍按
+    // overRef 提交到**当前显示的那个槽**，与视觉一致。
+    if (root && el && typeof el.closest === 'function' && root.contains(el) && overRef.current !== null) {
+      return
+    }
+    setOverState(null)
   }
   const hoverRow = (x: number, y: number): void => {
     if (rowDragRef.current === null) return
@@ -1164,6 +1218,12 @@ export function SettingsShell(props: ShellProps) {
     const tg = overRef.current
     rowDragRef.current = null
     overRef.current = null
+    if (d !== null && tg !== null) {
+      // FLIP 首帧播种：源行此刻仍是 fixed 跟手（up() 在 setFly(false) 前调用 onEnd），
+      // 记录光标位置的 rect → 提交渲染里被拖行从光标滑到目标槽，而不是先回到原位再滑动。
+      const rowEl = navListRef.current?.querySelector<HTMLElement>('[data-row-id="' + d.id + '"]')
+      if (rowEl) navPosRef.current.set(d.id, rowEl.getBoundingClientRect())
+    }
     setDrag(null)
     setOver(null)
     if (d !== null && tg !== null) commitDrop(d, tg)
@@ -1214,10 +1274,10 @@ export function SettingsShell(props: ShellProps) {
         const memberHits = memberSorted.filter((m) => matchesLabel(memberLabel(m)))
         if (megaHit || memberHits.length > 0) {
           sub.push(<GroupSeparator key="sep-mega" label={t ? t('group.mega') : 'mega'} />)
-          if (megaHit) sub.push(cell('mega-admin', megaLabel, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, target !== null && target.kind === 'mega', () => setTarget({ kind: 'mega' })))
+          if (megaHit) sub.push(cell('mega-admin', megaLabel, 'mgs-fold-item', <IconSettingsOutlineMedium size={16} />, target !== null && target.kind === 'mega', () => setTarget({ kind: 'mega' })))
           for (const m of memberHits) {
             const id = memberId(m)
-            sub.push(cell('m' + id, memberLabel(m), 'mgs-fold-item', <IconSettingsOutline16 size={16} />, target !== null && target.kind === 'member' && target.id === id, () => setTarget({ kind: 'member', id })))
+            sub.push(cell('m' + id, memberLabel(m), 'mgs-fold-item', <IconSettingsOutlineMedium size={16} />, target !== null && target.kind === 'member' && target.id === id, () => setTarget({ kind: 'member', id })))
           }
         }
         for (const g of groups) {
@@ -1225,7 +1285,7 @@ export function SettingsShell(props: ShellProps) {
           if (items.length === 0) continue // 命中为空 → 分组不显示
           sub.push(<div key={'sep-' + g.id} className="mgs-fold-sep mgs-fold-title"><span>{g.name}</span></div>)
           for (const it of items) {
-            sub.push(cell('s' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
+            sub.push(cell('s' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutlineMedium size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
           }
         }
         const uHits = ungroupedVisible
@@ -1234,7 +1294,7 @@ export function SettingsShell(props: ShellProps) {
         if (uHits.length > 0) {
           sub.push(<div key="sep-u" className="mgs-fold-sep mgs-fold-sep-u"><span>{t ? t('group.ungrouped') : '未分组'}</span></div>)
           for (const it of uHits) {
-            sub.push(cell('u' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutline16 size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
+            sub.push(cell('u' + it.id, it.label, 'mgs-fold-item', <IconSettingsOutlineMedium size={16} />, sectionActive(it.id), () => setTarget({ kind: 'section', id: it.id })))
           }
         }
         if (sub.length > 0) rows.push(<div key="fold-body" className="mgs-fold-body">{sub}</div>)
@@ -1328,7 +1388,7 @@ export function SettingsShell(props: ShellProps) {
           <NavCell
             key="mega-admin"
             className="mgs-fold-item"
-            icon={<IconSettingsOutline16 size={16} />}
+            icon={<IconSettingsOutlineMedium size={16} />}
             label={t ? t('settings.center') : 'mega 设置'}
             active={target !== null && target.kind === 'mega'}
             onClick={() => setTarget({ kind: 'mega' })}
@@ -1340,7 +1400,7 @@ export function SettingsShell(props: ShellProps) {
             <NavCell
               key={'m' + id}
               className="mgs-fold-item"
-              icon={<IconSettingsOutline16 size={16} />}
+              icon={<IconSettingsOutlineMedium size={16} />}
               label={memberLabel(m)}
               active={target !== null && target.kind === 'member' && target.id === id}
               onClick={() => setTarget({ kind: 'member', id })}
@@ -1424,7 +1484,7 @@ export function SettingsShell(props: ShellProps) {
                 kind="body"
                 id={it.id}
                 label={it.label}
-                icon={<IconSettingsOutline16 size={16} />}
+                icon={<IconSettingsOutlineMedium size={16} />}
                 active={target !== null && target.kind === 'section' && target.id === it.id}
                 onClick={() => setTarget({ kind: 'section', id: it.id })}
                 className="mgs-fold-item"
@@ -1502,7 +1562,7 @@ export function SettingsShell(props: ShellProps) {
                 kind="body"
                 id={it.id}
                 label={it.label}
-                icon={<IconSettingsOutline16 size={16} />}
+                icon={<IconSettingsOutlineMedium size={16} />}
                 active={target !== null && target.kind === 'section' && target.id === it.id}
                 onClick={() => setTarget({ kind: 'section', id: it.id })}
                 className="mgs-fold-item"
@@ -1542,7 +1602,7 @@ export function SettingsShell(props: ShellProps) {
       rows.push(
         <NavCell
           key="mega"
-          icon={<IconSettingsOutline16 size={16} />}
+          icon={<IconSettingsOutlineMedium size={16} />}
           label={mode === 'collect' ? (t ? t('shell.navCollect') : '收纳配置') : t ? t('settings.center') : 'mega 设置'}
           active={target !== null && target.kind === 'mega'}
           onClick={() => setTarget({ kind: 'mega' })}
@@ -1591,7 +1651,7 @@ export function SettingsShell(props: ShellProps) {
             <MiniSlotContent slots={slots.mini} slotKey="settings.trigger" ownerProps={{ wide: props.wide }} />
           ) : (
             <>
-              {props.wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
+              {props.wide ? <IconSettingsOutlineMedium size={16} /> : <IconSettingsOutlineRegular size={18} />}
               {props.wide ? <span className={C.triggerLabel}>{t ? t('shell.trigger') : '设置'}</span> : null}
             </>
           )}
@@ -1647,7 +1707,7 @@ export function SettingsShell(props: ShellProps) {
                   <MiniSlotContent slots={slots.mini} slotKey="settings.action" />
                 </div>
                 <button ref={closeRef} type="button" className={C.close} onClick={close}>
-                  <IconCloseOutline16 size={14} />
+                  <IconCloseOutlineMedium size={14} />
                   <span className={C.hiddenLabel}>
                     {slots.mini.entriesOfSlot('settings.close').length > 0 ? (
                       <MiniSlotContent slots={slots.mini} slotKey="settings.close" />

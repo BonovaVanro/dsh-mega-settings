@@ -7,7 +7,7 @@
  * 数据契约：groups 顺序、navOrder（释放接管）、ungroupedOrder 为权威持久化字段。
  */
 import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { ControlMode, MegaSettingsConfig, SettingsGroup } from '../schema.ts'
+import type { ControlMode, MegaSettingsConfig, SettingsGroup, SettingsPathOpView } from '../schema.ts'
 import {
   collectManaged,
   expandUngroupedOrder,
@@ -39,8 +39,11 @@ export interface SettingsCenterInjected {
   scope: {
     getSnapshot(): { value?: MegaSettingsConfig }
     subscribe(listener: () => void): () => void
-    set(field: string, value: unknown): Promise<void>
-    unset(field: string): Promise<void>
+    // 0.1.7 ConfigForm 的 set/unset 返回 Promise<boolean>（宿主是否接受）；调用方均以 void 消费
+    set(field: string, value: unknown): Promise<unknown>
+    unset(field: string): Promise<unknown>
+    /** 0.1.7 路径级写入：按 path 合并，避免整对象读-改-写竞争 */
+    mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<unknown>
   }
   slots: {
     members(): readonly MemberEntry[]
@@ -758,10 +761,37 @@ class MemberBoundary extends Component<{ children: ReactNode; failedText: string
   }
 }
 
+/** 家族公共开关（$DSH_HOME/mega.json）：mega-settings 作为家长直接读写家族开关（经 host API 桥）。 */
+function useFamilyCompat(): [boolean, (v: boolean) => void] {
+  const [enabled, setEnabled] = useState(true)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/dsh-mega-settings/family-compat')
+      .then((resp) => resp.json())
+      .then((data: { compatCheck?: boolean | null }) => {
+        if (alive) setEnabled(data.compatCheck !== false)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  const toggle = (v: boolean): void => {
+    setEnabled(v) // 乐观：立即更新开关，失败时下轮拉取会校正
+    void fetch('/api/dsh-mega-settings/family-compat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ compatCheck: v }),
+    }).catch(() => {})
+  }
+  return [enabled, toggle]
+}
+
 export function SettingsCenter(props: SettingsCenterProps) {
   const { scope, slots, renderSlot, t } = props
   const tr = t ?? ((key: string) => key)
   const value = useScopeValue(scope)
+  const [familyCompat, setFamilyCompat] = useFamilyCompat()
   const members = useMembers(slots)
   const sections = useSections(slots)
   const [open, openTarget] = useOpenTarget(value, scope)
@@ -1473,7 +1503,7 @@ export function SettingsCenter(props: SettingsCenterProps) {
           </FieldRow>
           {mode === 'fold' ? <p className="mgs-hint">{tr('mode.fold.hint')}</p> : null}
           <FieldRow label={tr('compat.check')}>
-            <Switch sm checked={config.compatCheck !== false} onChange={(v) => void scope.set('compatCheck', v)} />
+            <Switch sm checked={familyCompat} onChange={(v) => setFamilyCompat(v)} />
           </FieldRow>
           <p className="mgs-hint">{tr('compat.check.desc')}</p>
           <FieldRow label={tr('search.enable')}>

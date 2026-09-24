@@ -128,8 +128,26 @@ export const OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     descKey: 'opt.dsh.rightbarFullscreenBgAlpha.desc',
     // 透明度语义：数值越大越透明（0 = 完全不透明，100 = 全透明）；默认 25 → alpha 75%
     defaultValue: 25,
+    // 只作用于全屏面板内的 dock 内容区：收起右侧栏后 dock 区随内容消失，无残留变暗
+    // （不直接给 data-sidebar-right-panel="fullscreen" 面板铺背景——该面板常驻挂载、属性可能残留）。
     cssValue: (v) =>
-      '[data-sidebar-right-panel="fullscreen"]{background:rgb(from var(--dsw-alias-bg-base) r g b / ' +
+      '[data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] > section{background:rgb(from var(--dsw-alias-bg-base) r g b / ' +
+      (100 - Math.max(0, Math.min(100, Math.round(v)))) / 100 +
+      ')}',
+  },
+  {
+    id: 'dsh.editorFilePreviewBgAlpha',
+    group: 'dsh',
+    nameKey: 'opt.dsh.editorFilePreviewBgAlpha',
+    descKey: 'opt.dsh.editorFilePreviewBgAlpha.desc',
+    // 透明度语义：数值越大越透明（0 = 完全不透明，100 = 全透明）；默认 25 → alpha 75%
+    defaultValue: 25,
+    // 正文编辑「文件预览」卡片背景混合为主题 layer-1 半透明。
+    // _preview_178vx_56 为 web shell（dsh-web-frontend）CSS-module hash（同组 card=_card_178vx_13 / copyable / status
+    // 的预览态类；无 data-* 稳定面），随 shell 构建可能变化（0.1.7-alpha.1 为 _preview_1nod8_56，rc.1 改 178vx），
+    // 升级后需复核（同 rightbarFullscreenHideHeaderUtilities）。
+    cssValue: (v) =>
+      '._preview_178vx_56{background:rgb(from var(--dsw-alias-bg-layer-1) r g b / ' +
       (100 - Math.max(0, Math.min(100, Math.round(v)))) / 100 +
       ')}',
   },

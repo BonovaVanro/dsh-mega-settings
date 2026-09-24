@@ -5,11 +5,12 @@ import { zh, en } from '../src/client/locales.ts'
 import { forwardTranslate } from '../src/client/mini.tsx'
 
 describe('dsh-mega-settings 注册契约', () => {
-  it('入口三件套：name/inject/apply', () => {
+  it('入口：name/inject/apply + Config（0.1.7 schema 导出约定）', () => {
     expect(host.name).toBe('dsh-mega-settings')
     expect(typeof host.apply).toBe('function')
     expect(Array.isArray(host.inject)).toBe(true)
-    expect(host.inject).toContain('settings')
+    expect(host.inject).toContain('webServer')
+    expect((host as Record<string, unknown>).Config).toBeDefined()
   })
 
   it('无 default export（Loader 红线：default 会丢弃 inject/name）', async () => {

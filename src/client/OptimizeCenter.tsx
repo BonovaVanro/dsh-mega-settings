@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { MegaSettingsConfig } from '../schema.ts'
+import type { SettingsPathOpView } from '../schema.ts'
 import {
   optimizeByGroup,
   optimizeEnabled,
@@ -26,7 +27,9 @@ interface OptimizeCenterInjected {
   scope: {
     getSnapshot(): { value?: MegaSettingsConfig }
     subscribe(listener: () => void): () => void
-    set(field: string, value: unknown): Promise<void>
+    set(field: string, value: unknown): Promise<unknown>
+    /** 0.1.7 路径级写入：按 path 合并，避免整对象读-改-写竞争（连点两个开关互相覆盖） */
+    mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<unknown>
   }
   slots?: {
     sections(): readonly { id?: string; options?: { id?: string } }[]
@@ -335,15 +338,12 @@ export function OptimizeCenter(props: OptimizeCenterProps) {
     syncOptimizeEffects(config, installed, activeSections)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, versions, sectionsSig])
-  const toggles = config?.optToggles ?? {}
+  // 路径级写入（0.1.7 官方同款）：逐个字段 merge，避免整对象读-改-写竞争（连点两个开关互相覆盖）
   const setToggle = (id: string, on: boolean): void => {
-    const next = { ...toggles, [id]: on }
-    void props.scope.set('optToggles', next)
+    void props.scope.mutate([{ op: 'set', path: ['optToggles', id], value: on }])
   }
-  const values = config?.optValues ?? {}
   const setValue = (id: string, v: number): void => {
-    const next = { ...values, [id]: v }
-    void props.scope.set('optValues', next)
+    void props.scope.mutate([{ op: 'set', path: ['optValues', id], value: v }])
   }
   const renderDef = (def: OptimizeDef): ReactNode => (
     <DefBlock

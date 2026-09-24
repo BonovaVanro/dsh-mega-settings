@@ -8,12 +8,13 @@ declare module '@deepseek-ai/dsh-client-ui-primitives' {
     size?: number
     className?: string
   }
-  export const IconSettingsOutline14: (props: IconProps) => ReactNode
-  export const IconSettingsOutline16: (props: IconProps) => ReactNode
-  export const IconCloseOutline16: (props: IconProps) => ReactNode
-  export const IconDataOutline16: (props: IconProps) => ReactNode
-  export const IconAgentPresetOutline16: (props: IconProps) => ReactNode
-  export const IconPersonalizationOutline16: (props: IconProps) => ReactNode
+  // 0.1.7 图标命名：Outline16 → OutlineMedium，Outline14 → OutlineRegular
+  export const IconSettingsOutlineRegular: (props: IconProps) => ReactNode
+  export const IconSettingsOutlineMedium: (props: IconProps) => ReactNode
+  export const IconCloseOutlineMedium: (props: IconProps) => ReactNode
+  export const IconDataOutlineMedium: (props: IconProps) => ReactNode
+  export const IconAgentPresetOutlineMedium: (props: IconProps) => ReactNode
+  export const IconPersonalizationOutlineMedium: (props: IconProps) => ReactNode
   /** 官方 Button（settings.action「打开配置文件」用；outline + sm） */
   export const Button: (props: {
     variant?: 'primary' | 'outline' | 'ghost'

@@ -1,6 +1,6 @@
 {
   "name": "dsh-mega-settings",
-  "version": "0.1.5-rc.2-update.2",
+  "version": "0.1.7-rc.1",
   "description": "DSH mega 系列插件统一设置收纳宿主：双层配置结构（自身配置页+成员入口 / 成员配置页），注册成员与接管成员双机制，只收页面不收数据。",
   "license": "Apache-2.0",
   "homepage": "https://github.com/BonovaVanro/dsh-mega-settings#readme",
@@ -44,14 +44,14 @@
     "test": "vitest run tests"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-client-locale": ">=0.1.5-rc.1 <0.1.5",
-    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.5-rc.1 <0.1.5",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.5-rc.1 <0.1.5",
-    "@deepseek-ai/dsh-settings": ">=0.1.5-rc.1 <0.1.5",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.7-rc.1 <0.1.8",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-rc.1 <0.1.8",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-rc.1 <0.1.8",
+    "@deepseek-ai/dsh-settings": ">=0.1.7-rc.1 <0.1.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -65,10 +65,10 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-client-locale": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-settings": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-settings": "0.1.7-rc.1",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",

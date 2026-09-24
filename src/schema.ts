@@ -1,5 +1,10 @@
 import z from '@deepseek-ai/schemastery'
 
+/** 0.1.7 ConfigForm 路径级写入（对齐 dsh-api-remotes 的 SettingsPathOpView，本地收窄免外部依赖）。 */
+export type SettingsPathOpView =
+  | { op: 'set'; path: string[]; value: unknown }
+  | { op: 'unset'; path: string[] }
+
 /** 管控模式：fold = 折叠（接管原生设置弹层）；collect = 收纳（mega 设置页收卡片）。 */
 export type ControlMode = 'fold' | 'collect'
 
@@ -31,8 +36,10 @@ export interface MegaSettingsConfig {
   optToggles: Record<string, boolean>
   /** 优化项数值（mega 优化页）：key = 优化项 id；如右侧边栏全屏背景透明度 0-100（数值越大越透明，缺省 = 该项 defaultValue） */
   optValues: Record<string, number>
-  /** mega 系插件兼容性校验（mega 家族契约）：false = 各 mega 插件启动时不再校验 dsh 版本兼容并提醒（各插件自行读取本值） */
-  compatCheck: boolean
+  /** mega 系插件兼容性校验（mega 家族契约）：false = 各 mega 插件启动时不再校验 dsh 版本兼容并提醒（各插件自行读取本值）。
+   *  可选（三态）：显式 true/false 用户优先；未设时跟随家族公共文件 $DSH_HOME/mega.json，缺省 true。
+   *  注意 schema 上不得加 .default(true)——否则未设会被解析成显式 true，家族公共开关永远失效。 */
+  compatCheck?: boolean
   /** 设置搜索功能（设置页导航顶部搜索框；false = 不显示） */
   searchEnabled: boolean
   /** 已读提示 id 列表（mega 设置页提示面板；点击「懂你意思」后写入） */
@@ -54,8 +61,11 @@ export const defaultConfig: MegaSettingsConfig = {
   dismissedTips: [],
 }
 
-/** 显式标注：schemastery 的推断类型会引用 cosmokit 的 pnpm 私有路径，导致声明生成报 TS2742 */
-export const MegaSettingsSchema: z<MegaSettingsConfig> = z.object({
+/**
+ * 0.1.7 schemastery 输出类型含 Volatile 包装，推断类型又引用 cosmokit/schemastery 私有路径
+ * （TS2742）——先以 raw 定义，再显式收窄为自身接口（运行时 schema 不变）。
+ */
+const MegaSettingsSchemaRaw = z.object({
   mode: z.union(['fold', 'collect']).default('collect'),
   groups: z
     .array(
@@ -73,7 +83,12 @@ export const MegaSettingsSchema: z<MegaSettingsConfig> = z.object({
   pluginExists: z.dict(z.boolean()).default({}),
   optToggles: z.dict(z.boolean()).default({}),
   optValues: z.dict(z.number()).default({}),
-  compatCheck: z.boolean().default(true),
+  // 无 default（命门）：未设 = 不解析出该键，compatCheckEnabled 才能读到家族公共文件层
+  compatCheck: z.boolean(),
   searchEnabled: z.boolean().default(true),
   dismissedTips: z.array(z.string()).default([]),
-})
+  // 0.1.7：整个配置标为 volatile —— 非 volatile 字段禁止实时写入（mode/groups/optToggles 等都要即时生效）
+}).volatile()
+
+/** 导出为自身接口类型（可移植声明；运行时即上述 schemastery schema）。 */
+export const MegaSettingsSchema = MegaSettingsSchemaRaw as unknown as z<MegaSettingsConfig>
