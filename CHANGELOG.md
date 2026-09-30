@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0-rc.1（适配 dsh v0.2.0-rc.* · 依赖线跨 0.1.7/0.2.0）
+
+[中文](#cn-v0.2.0-rc.1) | [English](#en-v0.2.0-rc.1)
+
+<h3 id="cn-v0.2.0-rc.1">适配与变更</h3>
+
+- **适配 dsh v0.2.0-rc.1**：0.1 → 0.2 **无 API 破坏**（typecheck 零错误），代码直接兼容；依赖升 0.2.0-rc.1（dsh-settings / dsh-client-ui-settings / dsh-client-locale / dsh-client-ui-renderer）。
+- **peerDependencies 去掉 `<` 上限**：改为 `>=0.1.7-rc.1`（无上界），跨 0.1.7 / 0.2.0 两条运行时线均可安装——修复 0.2.0 上因旧 `<0.1.8` 上界被判不兼容而拒绝加载的问题。
+- **自带兼容策略改为双线数组声明**：`{ op: '=', target: ['0.1.7-rc.*', '0.2.0-rc.*'] }`，在 0.1.7 与 0.2.0 rc 运行时都不误报「可能不适配」。
+
+<h3 id="en-v0.2.0-rc.1">Adaptation & changes</h3>
+
+- **Adapted to dsh v0.2.0-rc.1**: no API break from 0.1 to 0.2 (typecheck clean), code is directly compatible; dependencies bumped to 0.2.0-rc.1 (dsh-settings / dsh-client-ui-settings / dsh-client-locale / dsh-client-ui-renderer).
+- **peerDependencies no longer cap below a version**: now `>=0.1.7-rc.1` (no upper bound), installable across both the 0.1.7 and 0.2.0 runtime lines — fixes the load rejection on 0.2.0 caused by the old `<0.1.8` upper bound.
+- **Own compat policy widened to a two-line array**: `{ op: '=', target: ['0.1.7-rc.*', '0.2.0-rc.*'] }`, so no false "may not be compatible" warning on either the 0.1.7 or 0.2.0 rc runtimes.
 ## 0.1.7-rc.1（适配 dsh v0.1.7-rc.* · 设置模型重构）
 
 [中文](#cn-v0.1.7-rc.1) | [English](#en-v0.1.7-rc.1)

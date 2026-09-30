@@ -19,13 +19,13 @@ export const inject = ['webServer']
 export const Config = MegaSettingsSchema
 
 /**
- * dsh 版本兼容策略：0.1.7 分支锁定 dsh-v0.1.7 rc 线（'= 0.1.7-rc.*'）。
- * - 0.1.7-alpha 统一不声明兼容（alpha 线仍会打印「可能不适配」提示，属设计）；
- * - 其余版本（含 0.1.5/0.1.6 线，因设置模型已重构）控制台警示，不阻断加载；
- * - 维护旧线请用对应分支（0.1.1/0.1.2/0.1.5-rc.2 的发布版本）；
- * - 也可改用数组或范围，如 { op: '=', target: ['0.1.7-rc.*'] } 或 { op: '>=', target: '0.1.7-rc.1' }。
+ * dsh 版本兼容策略：0.2.0 分支锁定 dsh-v0.2.0 rc 线（'= 0.2.0-rc.*'）。
+ * - 0.2.0-alpha 统一不声明兼容（alpha 线仍会打印「可能不适配」提示，属设计）；
+ * - 其余版本（含 0.1.x 线，因设置/会话模型已重构）控制台警示，不阻断加载；
+ * - 维护旧线请用对应分支（0.1.1/0.1.2/0.1.5/0.1.7 的发布版本）；
+ * - 也可改用数组或范围，如 { op: '=', target: ['0.2.0-rc.*'] } 或 { op: '>=', target: '0.2.0-rc.1' }。
  */
-const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: '0.1.7-rc.*' }
+const DSCH_COMPAT_POLICY: DshCompatPolicy = { op: '=', target: ['0.1.7-rc.*', '0.2.0-rc.*'] }
 
 const dshRequire = createRequire(import.meta.url)
 
