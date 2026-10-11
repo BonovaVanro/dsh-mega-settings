@@ -21,6 +21,7 @@ import {
   NATIVE_SECTION_IDS,
   NAV_HUB_ID,
   UNGROUPED_GID,
+  dropFinalIndex,
   expandUngroupedOrder,
   groupOf,
   memberId,
@@ -47,6 +48,7 @@ import {
   IconSettingsOutlineMedium,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SettingsCenter, type SettingsCenterInjected } from './SettingsCenter.tsx'
+import { trace } from './debug.ts'
 
 export interface ShellInjected {
   scope: SettingsCenterInjected['scope']
@@ -86,6 +88,26 @@ const absentSessionsSubscribe = (): (() => void) => () => {}
 const absentSessionsSnapshot = (): undefined => undefined
 const useAbsentSessions = (): undefined =>
   useSyncExternalStore(absentSessionsSubscribe, absentSessionsSnapshot, absentSessionsSnapshot)
+
+/** 官方用户按钮（settings.launcher 槽）是否在位（订阅式，注册晚于首帧也能跟随）。 */
+function useLauncherPresent(mini: MiniSlots): boolean {
+  const [subscribe, getSnapshot] = useMemo(() => {
+    let version = -1
+    let present = false
+    return [
+      (fn: () => void) => mini.subscribe('settings.launcher', fn),
+      () => {
+        const v = mini.getVersion('settings.launcher')
+        if (v !== version) {
+          version = v
+          present = mini.entriesOfSlot('settings.launcher').length > 0
+        }
+        return present
+      },
+    ] as const
+  }, [mini])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
 
 /** settings.onboarding 步骤（order 升序；账本 version 缓存 → getSnapshot 引用稳定）。 */
 function useOnboardingSteps(mini: MiniSlots): { id: string; order: number }[] {
@@ -659,6 +681,9 @@ export function SettingsShell(props: ShellProps) {
   // 优化效果同步已上移到 client/index.ts 的 apply（模块求值先注入 + 订阅校正）；
   // 这里不再按 React 挂载时机同步，避免宿主快照未就绪时用默认值覆盖首帧注入。
   const [open, setOpen] = useState(false)
+  /** 官方用户按钮（settings.launcher）是否在位：在位则不再并排本插件自己的设置按钮，
+   *  桌面版观感与官方一致（入口在用户菜单里）。 */
+  const hasLauncher = useLauncherPresent(slots.mini)
   // 官方 onboarding 舞台（settings.onboarding）：会话层就绪且无主视图会话/空白会话时，
   // 逐个展示「未读」引导步（步骤完成态为组件内会话级状态，官方同款——不落盘）。
   const useSessionsHook = props.useSessions ?? useAbsentSessions
@@ -913,10 +938,12 @@ export function SettingsShell(props: ShellProps) {
   const managedById = new Map(managedRows.map((r) => [r.id, r]))
   /** navOrder 中的原生行（已纳管） */
   const arrayNatives = new Set(navArrayIds.filter((id) => nativeSet.has(id)))
-  /** 顶区显示序 = 未纳管原生（规范序，默认在外） + navOrder 行 */
-  const nativePresent: NavRowLike[] = NATIVE_SECTION_IDS.map((id) => navRows.find((r) => r.id === id)).filter(
-    (x): x is NavRowLike => x !== undefined,
-  )
+  /** 顶区显示序 = 未纳管原生（规范序，默认在外） + navOrder 行
+   *  原生行取自**动态并集**（基线常量 ∪ 宿主快照的官方先注册分区），且按各自 order 排序——
+   *  硬编码常量不再决定「谁是原生」，只作基线（官方新增设置页不再需要改代码）。 */
+  const nativePresent: NavRowLike[] = navRows
+    .filter((r) => nativeSet.has(r.id) && !arrayNatives.has(r.id))
+    .sort((a, b) => a.order - b.order)
   const topDisplayRows: NavRowLike[] = [
     ...nativePresent.filter((r) => !arrayNatives.has(r.id)),
     ...navArrayIds
@@ -929,8 +956,15 @@ export function SettingsShell(props: ShellProps) {
     ...nativePresent.filter((r) => !arrayNatives.has(r.id)).map((r) => r.id),
     ...navArrayIds,
   ]
+  /** 该 id 当前是否「有行可显示」（落点换算的 hidden 判定）：
+   *  - 原生分区：只要 navRows 里有它就有行 —— 无论它是「未纳管的原生」（nativePresent）
+   *    还是「已纳管进 navOrder 数组的原生」（arrayNatives）。**两者都必须算存在**；
+   *    早期实现只查 nativePresent，导致原生行一旦进过 navOrder 就被判「不存在」，
+   *    于是 placeVisible 的可见项数被压到 1、落点一律被推到末尾（实测日志：
+   *    hiddenSelf=true、restVisible=["global-rules"]、nativeIds 含 agent-presets）。
+   *  - 第三方管控项：在 managedById 里即有行（nativeSectionIds 之外的 settings.section）。 */
   const topRowExists = (id: string): boolean =>
-    nativeSet.has(id) ? nativePresent.some((r) => r.id === id) : managedById.has(id)
+    nativeSet.has(id) ? navRows.some((r) => r.id === id) : managedById.has(id)
 
   /** 接管数组（折叠/收纳共享）——未分组条目：全部未分组（含 released，供收纳页用） */
   const ungroupedRawAll = ungroupedIds(managedRows.map((r) => r.id), groups)
@@ -1056,7 +1090,24 @@ export function SettingsShell(props: ShellProps) {
    *  释放只动顺序数组；接管数组不动。 */
   const commitTopDrop = (id: string, slot: number): void => {
     const rest = fullTopIds.filter((x) => x !== id)
-    const next = placeVisible(rest, (x) => !topRowExists(x), id, slot)
+    const hidden = (x: string): boolean => !topRowExists(x)
+    const next = placeVisible(rest, hidden, id, slot)
+    // 落点诊断：默认静默，控制台执行 window.__MGS_DEBUG_DRAG__ = true 后开启
+    if (typeof window !== 'undefined' && (window as unknown as { __MGS_DEBUG_DRAG__?: boolean }).__MGS_DEBUG_DRAG__) {
+      trace('commitTopDrop', {
+        id,
+        slot,
+        visibleCustomCount,
+        hiddenSelf: hidden(id),
+        restVisible: rest.filter((x) => !hidden(x)),
+        hiddenInRest: rest.filter((x) => hidden(x)),
+        managedIds: managedRows.map((r) => r.id),
+        nativeIds: navRows.filter((r) => nativeSet.has(r.id)).map((r) => r.id),
+        navArrayIds,
+        fullTopIds,
+        next: [...next, NAV_HUB_ID],
+      })
+    }
     if (!sameList(next, fullTopIds)) writeNavOrder(next)
   }
   /** 接管（top → 折叠体 lid 槽）：接管数组旧位移除 → 目标槽插入；navOrder 移除（状态 true）。 */
@@ -1635,6 +1686,26 @@ export function SettingsShell(props: ShellProps) {
   return (
     <>
       <div className={cls(C.triggerRow, !props.wide && C.railRow)}>
+        {/* 官方「用户按钮 + 菜单」位（settings.launcher）：桌面版由
+            @deepseek-ai/dsh-client-ui-settings-account 的 AccountMenu 注册，本壳原样 mini
+            渲染 —— 官方按钮与其全部菜单项保留。该组件对 openSettings / settingsOpen 是
+            **无保护使用**（菜单项 onSelect 直接调 openSettings()），必须由 owner props 提供，
+            否则点菜单里的「设置」会抛错；这里把它接到本壳弹层，于是官方入口打开的仍是 mega 设置。 */}
+        <MiniSlotContent
+          slots={slots.mini}
+          slotKey="settings.launcher"
+          ownerProps={{
+            wide: props.wide,
+            settingsOpen: open,
+            openSettings: () => {
+              setClosed({ $fold: true })
+              setOpen(true)
+            },
+          }}
+        />
+        {/* 官方用户按钮在位时不再并排一个齿轮按钮（桌面版观感 = 官方）；仅该槽无内容时
+            （web 等）保留本插件自己的设置入口。 */}
+        {hasLauncher ? null : (
         <button
           ref={triggerRef}
           type="button"
@@ -1656,6 +1727,7 @@ export function SettingsShell(props: ShellProps) {
             </>
           )}
         </button>
+        )}
         {/* 官方连接指示器（connecting / disconnected / recovered + 点击重连） */}
         <ConnectionIndicator
           state={props.wide ? (connectionState === 'connecting' ? 'connecting' : connectionState === 'disconnected' ? 'disconnected' : recovered ? 'recovered' : undefined) : undefined}

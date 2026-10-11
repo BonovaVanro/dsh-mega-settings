@@ -90,26 +90,41 @@ DSH（DeepSeek Harness）的**统一设置中心**：把散落插件的设置入
 
 ## 安装
 
-已适配 dsh v0.1.5-rc.\*（0.1.5 rc 线：rc.1 / rc.2 …）。dsh v0.1.1-* 请使用 0.1.1 分支版本，dsh v0.1.2-rc.1 请使用 0.1.2 分支版本。
-提供 npm / GitHub tag / 本地包 三种安装方式。
+已适配 dsh **`> 0.2.0-rc.2`**。更旧的版本线请使用对应分支的发布版本（0.1.1 / 0.1.2 / 0.1.5 / 0.1.7）。
+提供 npm / GitHub tag / 本地包 三种安装方式；**桌面版与 CLI 是两个独立 profile，需各装一份**（见下）。
 
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.2
+dsh plugin --profile web add dsh-mega-settings@0.2.0-rc.2
 ```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.2.0-rc.2
 ```
 
 **本地包**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.2.0-rc.2.tgz
 ```
+
+### 桌面版（官方 DSH 桌面应用）
+
+桌面版**不维护自己的插件名单**：它挂载的就是普通 `dsh-base` + `dsh-web-app` profile，第三方插件仍按常规 `dsh.bundle` + `dsh.client(platform: "web")` 契约加载，**不需要桌面专用构建** —— 同一个包、同一个构建同时适配桌面版与 web 版。
+
+但它与 CLI 是**两套独立档案**（配置也各自独立），插件要各装一份：
+
+| 运行方式 | 档案目录 | 安装方式 |
+| --- | --- | --- |
+| 桌面应用（默认 `desktop`） | `~/.dsh/profiles/desktop` | **应用内插件管理** |
+| CLI `dsh web` | `~/.dsh/profiles/web` | `dsh plugin --profile web add …` |
+
+`desktop` 档案由 Electron 应用**独占管理**：命令行 `dsh plugin --profile desktop …` 会被拒绝（`profile "desktop" is managed exclusively by the Electron application`），请在应用内安装/更新/卸载。
+
+装好后可在页面控制台确认当前运行的构建：查找 `[mgs-build]` 日志，或读取 `window.__MGS_BUILD__`。
 
 ## 快速上手
 
@@ -122,10 +137,12 @@ dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.2.tgz
 
 ## 适用 dsh 版本与兼容性
 
-- **适配 dsh 版本：0.1.5-rc.\***（0.1.5 rc 线通配：rc.1 / rc.2 …）；
-- dsh 0.1.1-* 维护线归 0.1.1 分支版本，0.1.2 线归 0.1.2 分支版本；
-- 宿主启动会按版本策略自检（默认 `= 0.1.5-rc.*`）；其他版本控制台会打印
+- **适配 dsh 版本：`>= 0.2.0-rc.1`**（本构建以 0.2.0-rc.1 为下限；0.2.0-rc.2 / 0.2.0 正式版 / 0.3.0 等更新版本均兼容）；
+- 更旧的版本线（dsh 0.1.1 / 0.1.2 / 0.1.5-rc.\* / 0.1.7-rc.\* / 0.2.0-alpha）请使用对应分支的发布版本；
+- 宿主启动会按版本策略自检（默认 `>= 0.2.0-rc.1`）；不匹配时控制台会打印
   `dsh-mega-settings 可能不适配 dsh <版本> 版本，请慎重使用`，插件仍可加载使用；
+- 插件还通过 `peerDependencies` 声明同一底线（`@deepseek-ai/dsh-settings`、`dsh-client-ui-settings`、`dsh-client-ui-renderer`、`dsh-client-locale` 均为 `>=0.2.0-rc.1`）；
+  若运行时低于该底线，dsh 会在安装阶段拦截，此时可用 `dsh plugin allow-version … --accept-risk` 或插件管理界面显式豁免（**注意**：dsh 会把运行时版本代入 peer 范围判定，因此用严格 `>` 会让"恰好等于底线"的版本必然需要逐版本豁免，故此处采用 `>=`）；
 - 维护者可自行调整 `src/index.ts` 的 `DSCH_COMPAT_POLICY`（支持 > / < / = 与通配、数组）。
 
 ## 常见问题

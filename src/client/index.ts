@@ -5,18 +5,21 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { SettingsCenterInjected } from './SettingsCenter.tsx'
 import { SettingsShell } from './SettingsShell.tsx'
-import { memberLabel, type MemberEntry, type SectionEntry } from './pure.ts'
+import { memberLabel, NATIVE_SECTION_IDS, type MemberEntry, type SectionEntry } from './pure.ts'
 import { zh, en } from './locales.ts'
 import type { MegaSettingsConfig, SettingsPathOpView } from '../schema.ts'
 import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID } from './seats.ts'
 import { forwardTranslate, type MiniSlots } from './mini.tsx'
 import { OptimizeCenter } from './OptimizeCenter.tsx'
 import { readOptimizeCache, syncOptimizeEffects } from './optimize-effects.ts'
+import { trace } from './debug.ts'
 import { readVersionsCache, subscribeVersions } from './versions.ts'
 export { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID }
 
 /** 构建期注入的包版本（scripts/build-client.mjs；成员徽章/优化页徽章用）。 */
 declare const MGS_VERSION: string
+/** 构建戳（构建期注入，形如 0.2.0-rc.1+63b0bba）：用于确认「跑的是不是最新代码」。 */
+declare const MGS_BUILD: string
 
 export const name = 'dsh-mega-settings'
 export const inject = ['slots', 'configForms', 'locale', 'sessions']
@@ -59,6 +62,8 @@ interface SlotsLike {
   }[]
   subscribe(key: string, fn: () => void): () => void
   getVersion(key: string): number
+  /** 槽位声明探测（SlotRegistry.spec；未声明 → undefined）。 */
+  spec?(key: string): unknown
   hostFace(): unknown
 }
 
@@ -195,21 +200,45 @@ function mountShell(
       },
     },
   })
-  const options = {
-    name: 'sidebar.settings',
-    priority: -100,
-    label,
-    locale: 'mega-settings',
-    inject: shellInjected,
-    children: {
-      [MEMBER_META_SEAT]: { kind: 'list' as const, scope: 'root' as const },
-      [MEMBER_PAGE_SEAT]: { kind: 'keyed' as const, scope: 'root' as const },
-      // 注意：不能在此声明官方 settings.header/action/close 等子槽——
-      // 官方 sidebar.settings 条目已声明它们，再声明会报 "slot already declared"；
-      // 影子壳因此无法经 renderSlot 渲染官方 settings.* 内容（操作列保持为空）。
-    },
-  }
-  return slots.inject('sidebar.settings', () => slots.register(options, SettingsShell))
+  /* 官方用户按钮槽（settings.launcher）：桌面版由 @deepseek-ai/dsh-client-ui-settings-account
+   * 的 AccountMenu 注册 —— 就是左侧边栏底部的「用户按钮 + 菜单」。本壳只用 mini 渲染器把
+   * 该槽内容原样渲染进触发器行（用户按钮与其全部菜单项都在，功能仍走官方实现）。
+   *
+   * **本壳不声明这个槽**，原因（三次实测教训）：
+   * 1) 官方壳（dsh-client-ui-settings-general）已声明它 → 我们再声明抛
+   *    `slot "settings.launcher" is already declared`；
+   * 2) 宿主注册过程中会**同步**触发嵌套 reconcile，把条目当场再注册一次；此时外层声明
+   *    尚未落账，`ctx.slots.spec()` 仍读到 undefined，据此判断就会重复声明；
+   * 3) 更根本的是：插件会被**重新 apply**（新 mountShell 实例），而**旧实例的声明仍然活着**
+   *    —— 任何模块/实例级状态位都挡不住（实测日志里第二次注册 tookLauncher: true 后立刻
+   *    抛错）。只要我们去声明，就永远存在一个会撞上的时序。
+   * 于是改为**只消费、不声明**：渲染侧 `useSlotVersion` 只用 subscribe/getVersion，
+   * 不要求槽由本条目声明；`MiniSlotContent` 按 live 条目渲染，槽未声明时自然渲染空。
+   * 官方侧（settings-account 的 inject）会自己把 AccountMenu 注册进该槽，本壳无需代劳。
+   * 其余官方子槽 trigger/header/action/close/section/onboarding 同样一律不声明。 */
+  return slots.inject('sidebar.settings', () => {
+    trace('register sidebar.settings', {
+      launcherDeclaredByOther: slots.spec?.('settings.launcher' as never) !== undefined,
+      children: [MEMBER_META_SEAT, MEMBER_PAGE_SEAT],
+    })
+    return slots.register(
+      {
+        name: 'sidebar.settings',
+        priority: -100,
+        label,
+        locale: 'mega-settings',
+        inject: shellInjected,
+        children: {
+          [MEMBER_META_SEAT]: { kind: 'list', scope: 'root' },
+          [MEMBER_PAGE_SEAT]: { kind: 'keyed', scope: 'root' },
+          // 注意：不能在此声明官方 settings.header/action/close 等子槽——
+          // 官方 sidebar.settings 条目已声明它们，再声明会报 "slot already declared"；
+          // 影子壳因此无法经 renderSlot 渲染官方 settings.* 内容（操作列保持为空）。
+        },
+      },
+      SettingsShell,
+    )
+  })
 }
 
 /**
@@ -436,6 +465,12 @@ export function apply(ctx: Context): void {
 
   // 设置壳恒驻（shadow sidebar.settings）；mode/entry 在壳与设置中心内读取，挂载不迁移
   mountShell(ctx, scope, () => t('settings.center'))
+  // 运行时诊断钩子（只读；见文件末尾 __MGS_DEBUG__ 说明）
+  try {
+    installDebugProbe(ctx)
+  } catch {
+    /* 诊断钩子失败不影响插件 */
+  }
 
   // 自身作为 mega 成员：mega 优化页（元信息 seat + 页面 seat，与成员契约一致——
   // 收纳模式出现在「mega」组卡片、折叠模式出现在 mega 固组行；宿主自足场景同款呈现）
@@ -470,4 +505,44 @@ export function apply(ctx: Context): void {
 /** 元信息 seat 占位组件（宿主自绘成员列表，组件不被渲染；与成员契约一致）。 */
 function MemberRowPlaceholder(): null {
   return null
+}
+
+/* ================= 运行时诊断（只读，默认开启） =================
+ * 桌面版上没有本地调试通道时，用 `copy(JSON.stringify(window.__MGS_DEBUG__()))` 一行取回
+ * 真实状态：槽位里到底有哪些 settings.section 条目、壳把谁当成原生/管控、每组可见项。
+ * 纯读取、不做任何写入，也不改渲染行为；用于定位「分区不显示」一类问题。 */
+interface DebugSlotsLike {
+  entriesOfSlot(key: string): readonly {
+    id: string
+    options?: { id?: string; order?: number; label?: unknown }
+  }[]
+  spec?(key: string): unknown
+}
+
+export function installDebugProbe(ctx: Context): void {
+  if (typeof window === 'undefined') return
+  const slots = ctx.slots as unknown as DebugSlotsLike
+  const read = (key: string): { id: string; order: number }[] => {
+    try {
+      return slots.entriesOfSlot(key).map((e) => ({
+        id: (e.options?.id ?? e.id ?? '') as string,
+        order: e.options?.order ?? 0,
+      }))
+    } catch (error) {
+      return [{ id: '<entriesOfSlot threw: ' + String(error) + '>', order: 0 }]
+    }
+  }
+  ;(window as unknown as { __MGS_DEBUG__?: () => unknown }).__MGS_DEBUG__ = () => ({
+    版本: 'debug-probe-1',
+    槽位: {
+      'sidebar.settings': read('sidebar.settings'),
+      'settings.section': read('settings.section'),
+      'settings.launcher': read('settings.launcher'),
+    },
+    槽位声明: {
+      'settings.section': slots.spec?.('settings.section') !== undefined,
+      'settings.launcher': slots.spec?.('settings.launcher') !== undefined,
+    },
+    原生清单: NATIVE_SECTION_IDS,
+  })
 }

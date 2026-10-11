@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.0-rc.2（适配官方 DSH 桌面版：设置入口在用户菜单里 · 一份包同时适配桌面与 web）
+
+[中文](#cn-v0.2.0-rc.2) | [English](#en-v0.2.0-rc.2)
+
+<h3 id="cn-v0.2.0-rc.2">适配与变更</h3>
+
+- **适配官方 DSH 桌面版**：桌面版把官方设置入口挪进了左侧边栏底部的「用户按钮 + 菜单」（`sidebar.settings` 由官方 `dsh-client-ui-settings-general` 占住，用户按钮/菜单由 `dsh-client-ui-settings-account` 注册进 `settings.launcher`）。本插件的设置壳现在：
+  - **原样渲染该槽内容**（官方 `AccountMenu`）→ 用户按钮与其全部菜单项保留，功能仍走官方实现；
+  - 把菜单里的「设置」接到本插件的 mega 设置弹层；
+  - 该槽有内容（桌面）时不再并排插件自己的齿轮按钮；为空（web）时保留插件自己的设置入口 —— 判据是**运行时槽位**而非平台，因此**同一份包、同一个构建**同时适配桌面版与 web 版。
+- **适配 dsh 0.2.0 新增的官方分区**：`账号与余额`（`account`，order -10）此前不在原生分区清单里，会被当作第三方设置收纳进分组、导航栏里看不到；现已归入原生分区，导航栏顺序与官方一致（官方后续新增分区仍可能需要在 `src/client/pure.ts` 的清单里同步）。
+- **修复顶区拖拽排序落点**：导航顶部行的拖拽落点曾被判定为「末尾」——除首位外，拖到任意槽都会被追加到最后。现已按落点正确插入。
+- **可诊断性**：加载时打印构建戳 `[mgs-build] <版本>+<short sha>`（并挂 `window.__MGS_BUILD__`），便于确认当前运行的是哪个构建。
+- **兼容底线抬到 `>= 0.2.0-rc.1`**：宿主版本自检策略与 `peerDependencies` 同步收紧（`dsh-settings` / `dsh-client-ui-settings` / `dsh-client-ui-renderer` / `dsh-client-locale` 均为 `>=0.2.0-rc.1`）；更旧的版本线（0.1.x / 0.2.0-alpha）请使用对应分支的发布版本。
+
+<h3 id="en-v0.2.0-rc.2">Adaptation & changes</h3>
+
+- **Adapted to the official DSH desktop app**: the desktop app moved the official settings entry into a "user button + menu" at the bottom of the left sidebar (`sidebar.settings` is claimed by the official `dsh-client-ui-settings-general`, while the user button/menu is registered into `settings.launcher` by `dsh-client-ui-settings-account`). This plugin's settings shell now:
+  - **renders that slot verbatim** (the official `AccountMenu`) → the user button and every menu item stay, still implemented by the official plugin;
+  - routes the menu's "Settings" item to this plugin's mega settings dialog;
+  - hides its own gear button when that slot has content (desktop) and keeps its own trigger when the slot is empty (web) — the criterion is a **runtime slot**, not the platform, so **one package and one build serve both the desktop app and web**.
+- **Adapted to dsh 0.2.0's new official section**: "Account" (`account`, order -10) was missing from the native-section list, so it was treated as a third-party section, folded into a group and never shown in the nav; it is now native and the nav matches the official order (future official sections may still need to be added to the list in `src/client/pure.ts`).
+- **Fixed top-area drag ordering**: a drop in the nav's top area used to land at the end — every slot except the first appended the row to the end. The row now lands at the dropped position.
+- **Diagnostics**: a build stamp is logged on load (`[mgs-build] <version>+<short sha>`, also `window.__MGS_BUILD__`) so the running build can be identified.
+- **Compatibility floor raised to `>= 0.2.0-rc.1`**: both the host version self-check policy and `peerDependencies` were tightened (`dsh-settings` / `dsh-client-ui-settings` / `dsh-client-ui-renderer` / `dsh-client-locale` are all `>=0.2.0-rc.1`); for older lines (0.1.x / 0.2.0-alpha) use the corresponding branch release.
+
 ## 0.2.0-rc.1（适配 dsh v0.2.0-rc.* · 依赖线跨 0.1.7/0.2.0）
 
 [中文](#cn-v0.2.0-rc.1) | [English](#en-v0.2.0-rc.1)

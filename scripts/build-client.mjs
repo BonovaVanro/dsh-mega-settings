@@ -5,6 +5,7 @@
  */
 import { build } from 'esbuild'
 import { readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
@@ -46,8 +47,25 @@ if (typeof document !== 'undefined') {
   }
 } catch { /* 无样式文件则跳过 */ }
 
-// 注入包版本（徽章展示真实版本；SettingsCenter 内 ambient 声明引用）
+// 注入包版本 + 构建戳（徽章用；同时用于排查「装的是不是最新代码」）
+const git = (() => {
+  try {
+    return {
+      sha: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim(),
+      date: execFileSync('git', ['show', '-s', '--format=%cI', 'HEAD'], { encoding: 'utf8' }).trim(),
+    }
+  } catch {
+    return { sha: 'unknown', date: '' }
+  }
+})()
+const buildStamp = `${pkg.version}+${git.sha}`
 const versionBlock = `const MGS_VERSION = ${JSON.stringify(pkg.version)};
+const MGS_BUILD = ${JSON.stringify(buildStamp)};
+/* 构建标记（可用性排查）：控制台搜 "[mgs-build]" 或读 window.__MGS_BUILD__ */
+try {
+  window.__MGS_BUILD__ = { version: MGS_VERSION, build: MGS_BUILD, sha: ${JSON.stringify(git.sha)}, commitDate: ${JSON.stringify(git.date)}, builtAt: ${JSON.stringify(new Date().toISOString())} };
+  console.info('[mgs-build] dsh-mega-settings ' + MGS_BUILD + ' · commit ' + ${JSON.stringify(git.sha)} + ' · ' + ${JSON.stringify(git.date)});
+} catch (e) { /* 非浏览器环境忽略 */ }
 `
 
 const out = `window.__ModuleLoader__.load({

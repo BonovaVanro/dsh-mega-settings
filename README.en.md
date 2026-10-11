@@ -89,26 +89,41 @@ Optimizations use a registry: each optimization is one def in `src/client/optimi
 
 ## Install
 
-Adapted to dsh v0.1.5-rc.\* (the 0.1.5 rc line: rc.1 / rc.2 …). For dsh v0.1.1-* use the 0.1.1 branch release, and for dsh v0.1.2-rc.1 use the 0.1.2 branch release.
-Three sources are supported: npm, GitHub tag, and local package.
+Adapted to dsh **`> 0.2.0-rc.2`**. For older lines use the corresponding branch release (0.1.1 / 0.1.2 / 0.1.5 / 0.1.7).
+Three sources are supported: npm, GitHub tag, and local package. **The desktop app and the CLI use two separate profiles, so the plugin must be installed once per profile** (see below).
 
 **npm**
 
 ```
-dsh plugin --profile web add dsh-mega-settings@0.1.5-rc.2-update.2
+dsh plugin --profile web add dsh-mega-settings@0.2.0-rc.2
 ```
 
 **GitHub tag**
 
 ```
-dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.1.5-rc.2-update.2
+dsh plugin --profile web add github:BonovaVanro/dsh-mega-settings#v0.2.0-rc.2
 ```
 
 **Local package**
 
 ```
-dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.2.tgz
+dsh plugin --profile web add dsh-mega-settings-0.2.0-rc.2.tgz
 ```
+
+### Desktop app (official DSH desktop application)
+
+The desktop app **keeps no plugin roster of its own**: it mounts an ordinary `dsh-base` + `dsh-web-app` profile, and third-party plugins load through the regular `dsh.bundle` + `dsh.client(platform: "web")` contract — **no desktop-specific build is needed**, so one package and one build serve both the desktop app and web.
+
+It does, however, use a **separate profile** from the CLI (with its own configuration), so the plugin must be installed once per profile:
+
+| How you run dsh | Profile directory | How to install |
+| --- | --- | --- |
+| Desktop app (default `desktop`) | `~/.dsh/profiles/desktop` | **the in-app plugin management UI** |
+| CLI `dsh web` | `~/.dsh/profiles/web` | `dsh plugin --profile web add …` |
+
+The `desktop` profile is **managed exclusively by the Electron application**: `dsh plugin --profile desktop …` is refused (`profile "desktop" is managed exclusively by the Electron application`), so install/update/remove it from inside the app.
+
+After installing, you can confirm which build is running from the page console: look for the `[mgs-build]` log line or read `window.__MGS_BUILD__`.
 
 ## Getting started
 
@@ -121,10 +136,11 @@ dsh plugin --profile web add dsh-mega-settings-0.1.5-rc.2-update.2.tgz
 
 ## Supported dsh versions & compatibility
 
-- **Adapted to dsh version: 0.1.5-rc.\*** (the 0.1.5 rc line wildcarded: rc.1 / rc.2 …);
-- The dsh 0.1.1-* maintenance line belongs to the 0.1.1 branch release, and the 0.1.2 line to the 0.1.2 branch release;
-- On startup the host self-checks the version policy (default `= 0.1.5-rc.*`); other versions make the console print
+- **Adapted to dsh version: `>= 0.2.0-rc.1`** (this build takes 0.2.0-rc.1 as its floor; 0.2.0-rc.2 / the 0.2.0 release / 0.3.0 and newer are all compatible);
+- Older lines (dsh 0.1.1 / 0.1.2 / 0.1.5-rc.\* / 0.1.7-rc.\* / 0.2.0-alpha) should use the corresponding branch release;
+- On startup the host self-checks the version policy (default `>= 0.2.0-rc.1`); a mismatch makes the console print
   `dsh-mega-settings may not be compatible with dsh <version> — use with caution`, and the plugin still loads;
+- The same floor is declared through `peerDependencies` (`@deepseek-ai/dsh-settings`, `dsh-client-ui-settings`, `dsh-client-ui-renderer` and `dsh-client-locale` are all `>=0.2.0-rc.1`); when the runtime is below it, dsh blocks the install and it can be accepted explicitly with `dsh plugin allow-version … --accept-risk` or the plugin manager (**note**: dsh evaluates the *runtime* version against the peer range, so a strict `>` would force a per-version exemption for the version equal to the floor — hence `>=`);
 - Maintainers may tune `DSCH_COMPAT_POLICY` in `src/index.ts` (supports > / < / = with wildcard patterns and arrays).
 
 ## FAQ
