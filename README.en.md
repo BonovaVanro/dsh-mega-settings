@@ -22,19 +22,46 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 
 ### dsh group
 
+Grouped into four sub-sections: **Desktop app** (desktop shell only) → **Content** → **Left sidebar** → **Rightbar**.
+
+#### Desktop app (official DSH desktop application only)
+
+- **Titlebar background follows the left sidebar**: the window titlebar matches the sidebar in color and transparency, and the three **native window buttons** (minimize/maximize/close) get a transparent background (the official color probe is redirected; the theme variable stays untouched);
+- **Remove frame top padding**: drops the 40px top padding the app reserves for the Windows drag titlebar (off by default — content then sits level with the window buttons).
+
+#### Content
+
+- **Unify background color**: both the conversation centre column and the conversation root paint the theme background; this keeps only the selected layer (the other is cleared);
+- **Background transparency**: blends the selected layer toward transparent; with unification off, both layers are blended;
+- **File preview background transparency**: blends the file preview card background with the theme layer-1 color;
+- **Remove conversation header background**: removes the conversation header background so it matches the body.
+
+#### Left sidebar
+
+- **Unify background color**: both the sidebar column and the sidebar root paint a background; this keeps only the selected layer;
+- **Background transparency**: blends the kept layer toward transparent (higher = more transparent, default 30);
+- **Footer actions layout**: stacks the footer actions vertically; buttons go full width and entry text is centered.
+
+#### Rightbar
+
 - **Rightbar fullscreen zero track**: forces the grid placeholder track to 0 while the right sidebar is fullscreen so the center column keeps its width (restored correctly on exit/close);
 - **Rightbar fullscreen background transparency**: slider 0-100, larger = more transparent (default 25); re-blends the fullscreen panel background with the current theme color;
 - **Hide conversation toolbar in fullscreen**: hides the conversation header utilities while the right sidebar is fullscreen;
-- **Left sidebar footer actions layout**: stacks the footer actions vertically; while the sidebar is collapsed the buttons go full width and the action entries center their text;
-- **Settings shortcut**: `Ctrl+Shift+S` opens the settings dialog (intercepts the browser "Save as").
+- **Fullscreen by default on open** / **fullscreen z-index** / **fullscreen padding** / **close fullscreen with Esc** / **open in a tab**, and more.
+
+#### General
+
+- **Frame background transparency**: blends the content frame background toward transparent;
+- **Markdown table max width**, **hover copy card theme adaptation**, **Settings shortcut** (`Ctrl+Shift+S` opens the settings dialog, intercepting the browser "Save as"), and more.
 
 ### Third-party plugins
 
 Each plugin gets its own panel (plugin name + version in the header); **plugins that are not installed or not enabled are hidden and their effects are not injected**. Currently:
 
 - **dsh-better-sidebar**: hide the bottom-panel toggle;
-- **dsh-cost-meter**: peak/valley pricing theme adaptation (weekend and peak markers/labels follow the theme; the peak-hour color is selectable: warning / danger / error);
-- **Skill explorer** (`@linxin666/dsh-client-ui-skill-explorer`): panel theme adaptation (hardcoded colors become theme tokens so the panel follows skins).
+- **dsh-cost-meter**: peak/valley pricing theme adaptation (weekend and peak markers/labels follow the theme; the peak-hour color is selectable: warning / danger / error); the bottom cost bar also gained **background transparency** and **remove border**.
+
+> The Skill explorer (`@linxin666/dsh-client-ui-skill-explorer`) theme adaptation has been **removed**: that plugin now handles theme/skin adaptation itself, so this plugin no longer overrides its styles.
 
 ### Extensibility
 

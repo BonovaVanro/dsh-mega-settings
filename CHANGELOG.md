@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.2.0-rc.2-update.1（桌面版适配补全 · 「正文」分区 · 原生窗口按钮）
+
+[中文](#cn-v0.2.0-rc.2-update.1) | [English](#en-v0.2.0-rc.2-update.1)
+
+<h3 id="cn-v0.2.0-rc.2-update.1">适配与变更</h3>
+
+- **新增「桌面版」分类，仅桌面壳可见**：桌面专属项带 `desktopOnly` —— 在 web 端**不注册、不展示、不注入**（不是隐藏，而是根本不进注册表）。平台判据由 `src/client/platform.ts` 提供：`<html data-platform>`、`<html data-windows-titlebar>`、`location.protocol === 'dsh-app:'` 任一成立即为桌面壳。
+- **原生窗口按钮透明（「窗口标题背景跟随左侧边栏」）**：官方 preload 会往 body 追加一个隐藏 span 作**取色探针**，其 `background-color: var(--dsw-specific-sidebar-fill)` 的计算值就是最小化/最大化/关闭三个按钮的底色。本插件把该探针的取值源**重定向**到自有变量 `--mgs-button-fill`（带兜底），再由 body 行内的 `rgba(0, 0, 0, 0)` 决定按钮透明；**主题变量全程不被修改**，因此按钮与侧栏、标题条互不干扰。透明用"计算后"形态，可过主进程「只接受 `#hex` / `rgb()`/`rgba()`」的校验；探针被主题切换重建时会自动重新接管。
+- **新增「框架上内边距移除」**（桌面版，默认关闭）：`[data-windows-titlebar] …_frame{padding-top:0!important}`，去掉官方为 Windows 拖拽条预留的 40px。
+- **新增「正文」分区**（两端可见，排在「左侧边栏」之前）：
+  - **背景颜色统一化**：中心列 `[data-dsh-surface="conversation"]` 与会话根 `[data-slot="main.conversation"] > [class*="_root"]` 都铺了主题底色，此开关**只保留所选的那一层**（另一层 `background:none!important`）；
+  - **背景透明度**：把所选层背景按比例混向透明；若统一化未开启则两层同时生效，开启则只作用于保留层并兜底清空另一层；
+  - **文件预览背景透明度**：原「正文编辑文件预览背景透明度」改名并上移；
+  - **头部背景移除**：`#root [data-slot="main.conversation"] header{background:none!important}`，消除头部与正文的色差。
+- **新增「框架背景透明度」**：内容区框架 `#root [data-slot="root"] > [class*="_frame"]` 背景按比例混向透明，两端可见。
+- **左侧边栏两项升级**：「背景颜色统一化」改为**保留层可选**（侧栏列 / 侧栏根），「背景透明度」作用范围随统一化的开关与所选层自动切换；颜色源改用 `color-mix`，默认值 25 → 30（≈ 官方 `…/0.25` 观感），语义不变：数值越大越透明。
+- **选择器全面 hash 无关化**（桌面版构建的 CSS-module hash 前缀与 web 不同，硬编码类名在桌面端命中 0）：
+  - 侧栏列 `#root [class*="_sidebarCol"]`；侧栏模块根 `#root [data-slot="sidebar"] > [class*="_root"]`（裸 `[class*="_root"]` 会命中数百个元素，已避免）；
+  - 底部动作区 `[class*="_footerActions"]`；全屏隐藏正文工具栏 `[class*="_headerUtilities"]`；
+  - Markdown 表格限宽改用 `.md-table-wide,[class*="_tableScroll"]` 两点覆盖。
+- **「打开右侧栏默认全屏」不再来回横跳**：不再依赖 `[data-rightbar-fullscreen]`（两端实测命中 0），改为**看按钮文案**（「全屏」/「退出全屏」）+ **面板几何**判断，避免每次打开都切换一次。
+- **底部动作区布局不再依赖折叠态标记**：两端都没有 `[data-sidebar-collapsed]`，改为无条件生效。
+- **设置弹层默认页**：打开时若尚未选中任何页，默认停在**「通用设置」**（若该分区当前不在导航里，则退到第一个可见分区），只影响默认选中、不写配置。
+- **cost-meter 新增两项**（面板内按需开启，默认关闭）：**背景透明度**（`.cm-footer-stack.simple` 及其内部行，混合主题 layer-1）；**边框移除**（同选择器 `border:none`）。
+- **可诊断性**：`window.__MGS_DEBUG__()` 输出**优化锚点自检**（逐项列出选择器与 JS 效果锚点的当前命中数，用于换版后判断"锚点没匹配"还是"被官方样式压过"）；另挂 `window.__MGS_SYNC_LOG__(n)` 记录同步决策（本项值 / 兄弟值 / 生成样式）。
+
+<h3 id="cn-v0.2.0-rc.2-update.1-removed">移除</h3>
+
+- **「技能中心」主题适配项**（`@linxin666/dsh-client-ui-skill-explorer`）：该插件自身已完善主题/皮肤适配，不再需要本插件用 hash 类覆盖其样式；其面板不再出现，相关词条一并删除。
+
+<h3 id="en-v0.2.0-rc.2-update.1">Adaptation &amp; changes</h3>
+
+- **New "Desktop app" section, visible only in the desktop shell**: desktop-only items carry `desktopOnly` — on web they are **not registered, not listed and not injected** (not merely hidden). The platform check lives in `src/client/platform.ts`: any of `<html data-platform>`, `<html data-windows-titlebar>` or `location.protocol === 'dsh-app:'` marks the desktop shell.
+- **Native window buttons become transparent ("Titlebar background follows the left sidebar")**: the official preload appends a hidden span to `body` as its **colour probe**; the computed value of its `background-color: var(--dsw-specific-sidebar-fill)` is exactly the button background. This plugin **redirects** the probe to its own variable `--mgs-button-fill` (with fallback) and drives transparency from an inline `rgba(0, 0, 0, 0)` on `body`; **the theme variable is never modified**, so buttons, sidebar and titlebar stay independent. The transparent value is emitted in computed form so it passes the main process check (it only accepts `#hex` / `rgb()`/`rgba()`), and the probe is re-adopted whenever a theme switch recreates it.
+- **New "Remove frame top padding"** (desktop only, off by default): `[data-windows-titlebar] …_frame{padding-top:0!important}`, dropping the 40px the app reserves for the Windows drag strip.
+- **New "Content" section** (both platforms, placed above "Left sidebar"):
+  - **Unify background color**: both the centre column `[data-dsh-surface="conversation"]` and the conversation root `[data-slot="main.conversation"] > [class*="_root"]` paint the theme background; this keeps **only the selected layer** (`background:none!important` on the other);
+  - **Background transparency**: blends the kept layer's background toward transparent; with unification off both layers are blended, with it on only the kept layer is (and the other is cleared as a fallback);
+  - **File preview background transparency**: the former "Editor file preview background transparency", renamed and moved up;
+  - **Remove conversation header background**: `#root [data-slot="main.conversation"] header{background:none!important}`, removing the colour difference between header and body.
+- **New "Frame background transparency"**: blends the content frame `#root [data-slot="root"] > [class*="_frame"]` background toward transparent, available on both platforms.
+- **Left sidebar upgrades**: "Unify background color" now lets you **choose which layer to keep** (sidebar column / sidebar root), and "Background transparency" follows that choice and the unification switch; the colour source uses `color-mix` and the default moved 25 → 30 (≈ the official `…/0.25` look). Semantics unchanged: higher = more transparent.
+- **All selectors are now hash-agnostic** (the desktop build uses different CSS-module hash prefixes, so hard-coded class names matched nothing there):
+  - sidebar column `#root [class*="_sidebarCol"]`; sidebar module root `#root [data-slot="sidebar"] > [class*="_root"]` (a bare `[class*="_root"]` matches hundreds of elements and is avoided);
+  - footer actions `[class*="_footerActions"]`; hide body header utilities in fullscreen `[class*="_headerUtilities"]`;
+  - markdown table max-width now covers both `.md-table-wide,[class*="_tableScroll"]`.
+- **"Open the right sidebar in fullscreen by default" no longer oscillates**: it no longer relies on `[data-rightbar-fullscreen]` (measured 0 on both platforms) but reads the **button label** ("全屏" / "退出全屏") plus **panel geometry**, so opening no longer toggles fullscreen every time.
+- **Bottom actions layout no longer depends on a collapsed marker**: neither platform exposes `[data-sidebar-collapsed]`, so the rules apply unconditionally.
+- **Settings dialog default page**: when opened with nothing selected it lands on **General** (or the first visible section if General is not currently in the nav); this only affects the initial selection and writes no config.
+- **Two new cost-meter options** (opt-in, off by default): **Background transparency** (`.cm-footer-stack.simple` and its inner rows, blended with the theme layer-1 colour) and **Remove border** (`border:none` on the same selector).
+- **Diagnostics**: `window.__MGS_DEBUG__()` prints an **optimization anchor self-check** (per-item match counts for injected selectors and JS-effect anchors, to tell "anchor not found" from "overridden by upstream CSS" after an upgrade); `window.__MGS_SYNC_LOG__(n)` records sync decisions (own value / sibling values / generated CSS).
+
+<h3 id="en-v0.2.0-rc.2-update.1-removed">Removed</h3>
+
+- **The "Skill explorer" theme adaptation** (`@linxin666/dsh-client-ui-skill-explorer`): that plugin now handles theme/skin adaptation itself, so this plugin no longer overrides its styles through hashed classes; its panel no longer appears and the related locale entries are gone.
+
 ## 0.2.0-rc.2（适配官方 DSH 桌面版：设置入口在用户菜单里 · 一份包同时适配桌面与 web）
 
 [中文](#cn-v0.2.0-rc.2) | [English](#en-v0.2.0-rc.2)

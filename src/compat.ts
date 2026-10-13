@@ -21,7 +21,7 @@ export interface DshCompatPolicy {
   target: string | readonly string[]
 }
 
-export interface DshVersionParts {
+interface DshVersionParts {
   /** [major, minor, patch] */
   base: [number, number, number]
   /** 预发布标识数组（rc、alpha、数字…）；无预发布 = null */

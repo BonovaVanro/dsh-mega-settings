@@ -20,6 +20,7 @@ import {
   type OptimizeDef,
 } from './optimize.ts'
 import { syncOptimizeEffects } from './optimize-effects.ts'
+import { isDesktopShell } from './platform.ts'
 import { useVersions } from './versions.ts'
 
 /** 页面注入面：自身配置 scope + slots 业务面（插件启用检测用）。 */
@@ -88,7 +89,7 @@ function Switch(props: { checked: boolean; onChange: (v: boolean) => void; title
 function OptimizeRow(props: {
   def: OptimizeDef
   enabled: boolean
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string>) => string
   onToggle: (on: boolean) => void
 }) {
   const { def, t } = props
@@ -211,7 +212,7 @@ function ChoiceRow(props: {
   label: string
   choices: readonly { value: string; labelKey: string }[]
   value: number
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string>) => string
   onChange: (v: number) => void
 }) {
   return (
@@ -240,7 +241,7 @@ function DefBlock(props: {
   def: OptimizeDef
   enabled: boolean
   value: number | undefined
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string>) => string
   onToggle: (on: boolean) => void
   onValue: (v: number) => void
 }) {
@@ -248,7 +249,9 @@ function DefBlock(props: {
   return (
     <>
       <OptimizeRow def={def} enabled={props.enabled} t={props.t} onToggle={props.onToggle} />
-      {props.value !== undefined ? (
+      {/* `follows` 项（数值跟随另一项）不渲染自己的控件 —— 开关名已说明该行为，
+          取值由效果层读取目标项完成，无需额外提示行。 */}
+      {def.follows === undefined && props.value !== undefined ? (
         def.choices && def.choices.length > 0 ? (
           <ChoiceRow
             label={props.t(def.choiceLabelKey ?? 'opt.value.transparency')}
@@ -367,9 +370,14 @@ export function OptimizeCenter(props: OptimizeCenterProps) {
   const sortDefs = (defs: readonly OptimizeDef[]): OptimizeDef[] =>
     [...defs].sort((a, b) => Number(hasControl(a)) - Number(hasControl(b)))
 
-  // dsh 界面组（恒显示；空则不渲染）：一般区 + 左侧边栏 + 右侧边栏子区
+  // dsh 界面组（恒显示；空则不渲染）：一般区 + 桌面版 + 左侧边栏 + 右侧边栏子区
+  // 「桌面版」分区的项都带 desktopOnly，web 端已被注册表过滤掉；这里再按平台判一次，
+  // 保证 web 上连分区标题都不出现（双保险）。
+  const desktopShell = isDesktopShell()
   const dshDefs = optimizeByGroup('dsh')
   const dshGeneral = sortDefs(dshDefs.filter((d) => !d.dshSection))
+  const dshDesktop = desktopShell ? sortDefs(dshDefs.filter((d) => d.dshSection === 'desktop')) : []
+  const dshContent = sortDefs(dshDefs.filter((d) => d.dshSection === 'content'))
   const dshLeftbar = sortDefs(dshDefs.filter((d) => d.dshSection === 'leftbar'))
   const dshRightbar = sortDefs(dshDefs.filter((d) => d.dshSection === 'rightbar'))
 
@@ -379,6 +387,18 @@ export function OptimizeCenter(props: OptimizeCenterProps) {
       {dshDefs.length > 0 ? (
         <CollapsiblePanel title={tr('opt.group.dsh')}>
           {dshGeneral.map((def) => renderDef(def))}
+          {dshDesktop.length > 0 ? (
+            <>
+              <div className="mgs-opt-subhead">{tr('opt.group.dshDesktop')}</div>
+              {dshDesktop.map((def) => renderDef(def))}
+            </>
+          ) : null}
+          {dshContent.length > 0 ? (
+            <>
+              <div className="mgs-opt-subhead">{tr('opt.group.dshContent')}</div>
+              {dshContent.map((def) => renderDef(def))}
+            </>
+          ) : null}
           {dshLeftbar.length > 0 ? (
             <>
               <div className="mgs-opt-subhead">{tr('opt.group.dshLeftbar')}</div>

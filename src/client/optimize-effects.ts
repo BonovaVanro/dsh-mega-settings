@@ -7,9 +7,29 @@
  * 需由持有方清理——每次调用会校正全部 data-mgs-opt-id 标签与激活的 JS 效果，
  * 丢失的自动重建/重挂，多余/失效的自动移除/卸载。
  */
-import { OPTIMIZE_DEFS, enabledOptimizeIds, optimizeValue } from './optimize.ts'
+import {
+  CV_UNIFY_ID,
+  FILL_BUTTON,
+  LB_UNIFY_ID,
+  OPTIMIZE_DEFS,
+  enabledOptimizeIds,
+  optimizeEnabled,
+  optimizeValue,
+} from './optimize.ts'
 
 const TAG_PLUGIN = 'dsh-mega-settings/optimize'
+
+/** 同步决策诊断：记录每次同步里"每个 def 拿到什么值、生成什么样式、标签是否被重建"。
+ *  用法：控制台执行 __MGS_SYNC_LOG__() 打印最近一次、__MGS_SYNC_LOG__(3) 打印最近三次。 */
+const SYNC_LOG: Array<Record<string, unknown>> = []
+function pushSyncLog(entry: Record<string, unknown>): void {
+  SYNC_LOG.push(entry)
+  if (SYNC_LOG.length > 20) SYNC_LOG.shift()
+}
+if (typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).__MGS_SYNC_LOG__ = (n = 1) =>
+    SYNC_LOG.slice(-Math.max(1, n)).map((e) => JSON.parse(JSON.stringify(e)) as unknown)
+}
 
 /* ================= 本地镜像（刷新首帧生效） ================= */
 
@@ -21,7 +41,7 @@ const TAG_PLUGIN = 'dsh-mega-settings/optimize'
 const OPT_CACHE_KEY = 'dsh-mega-settings.optimize.v1'
 
 /** syncOptimizeEffects 需要的最小配置面（MegaSettingsConfig 结构兼容）。 */
-export interface OptimizeConfigLike {
+interface OptimizeConfigLike {
   optToggles?: Record<string, boolean>
   optValues?: Record<string, number>
 }
@@ -286,46 +306,70 @@ function enableRightbarTabOpen(): () => void {
 
 /**
  * dsh：右侧边栏默认全屏。
+ *
  * 仅「关闭 → 打开」瞬间触发一次：若未全屏则模拟点击官方「全屏」按钮进入全屏；
- * 手动退出全屏后不再强制（用户已自主选择）。状态变化观察 data-sidebar-right-open / data-rightbar-fullscreen。
+ * 用户手动退出全屏后不再强制（尊重用户选择）。
+ *
+ * 状态判定**不能依赖属性**（双端实测 `[data-rightbar-fullscreen]` 与 `[data-sidebar-right-open]`
+ * 均命中 0；`[data-sidebar-right-panel]` 则常驻挂载、无法区分开关）：
+ * - 「是否已全屏」→ 看官方同一按钮的文案：非全屏为「全屏」、已全屏为「退出全屏」；
+ * - 「是否已打开」→ 看面板的**几何**（宽高 > 0；关闭时占位为 0）。
+ * 早期实现用 `[data-rightbar-fullscreen]` 判断"已全屏"，属性消失后逻辑退化为「无脑点按钮」，
+ * 配合候选里同时含两种文案 → 每次打开都切换一次全屏（实测现象：打开全屏、再打开退出全屏、横跳）。
  */
 function enableRightbarDefaultFullscreen(): () => void {
   const TO_FS_LABELS = ['全屏', 'Fullscreen']
-  const clickToFullscreen = (): boolean => {
-    for (const label of TO_FS_LABELS) {
+  const IN_FS_LABELS = ['退出全屏', 'Exit fullscreen']
+  const findBtn = (labels: readonly string[]): HTMLElement | null => {
+    for (const label of labels) {
       const btn = document.querySelector<HTMLElement>('[data-sidebar-right-panel] [aria-label="' + label + '"]')
-      if (btn !== null) {
-        btn.click()
-        return true
-      }
+      if (btn !== null) return btn
     }
-    return false
+    return null
+  }
+  /** 面板是否可见（打开态）：几何判定，关闭时占位为 0。 */
+  const panelVisible = (): boolean => {
+    const panel = document.querySelector<HTMLElement>('[data-sidebar-right-panel]')
+    if (panel === null) return false
+    const r = panel.getBoundingClientRect()
+    return r.width > 1 && r.height > 1
+  }
+  /** 仅在「未全屏」时点击进入全屏；已全屏（按钮为「退出全屏」）绝不点击。 */
+  const clickToFullscreen = (): boolean => {
+    if (findBtn(IN_FS_LABELS) !== null) return true
+    const btn = findBtn(TO_FS_LABELS)
+    if (btn === null) return false
+    btn.click()
+    return true
+  }
+
+  /* 状态机（纯逻辑，供单测）：只有「可见」由 false → true 的那一次才尝试进入全屏。 */
+  let visible = panelVisible()
+  let lastVisible = visible
+  const onMutation = (): void => {
+    visible = panelVisible()
+    if (visible && !lastVisible) tryOpen()
+    lastVisible = visible
   }
   let pending: number | undefined
-  const tryOpenFullscreen = (): void => {
+  const tryOpen = (): void => {
     if (clickToFullscreen()) return
     if (pending === undefined) {
+      // 面板刚打开时按钮可能尚未渲染，短延迟重试一次
       pending = window.setTimeout(() => {
         pending = undefined
         clickToFullscreen()
-      }, 80)
+      }, 120)
     }
   }
-  const initialOpen = document.querySelector('[data-sidebar-right-open]') !== null
-  let wasOpen = initialOpen // 初始已打开不强制，仅对之后的打开动作生效
-  const sync = (): void => {
-    const open = document.querySelector('[data-sidebar-right-open]') !== null
-    const fullscreen = document.querySelector('[data-rightbar-fullscreen]') !== null
-    if (open && !wasOpen && !fullscreen) tryOpenFullscreen()
-    wasOpen = open
-  }
-  const mo = new MutationObserver(sync)
+
+  const mo = new MutationObserver(onMutation)
   mo.observe(document.documentElement, {
     subtree: true,
     attributes: true,
-    attributeFilter: ['data-sidebar-right-open', 'data-rightbar-fullscreen'],
+    attributeFilter: ['class', 'style', 'aria-label', 'data-rightbar-fullscreen', 'data-sidebar-right-panel'],
   })
-  sync()
+  onMutation()
   return () => {
     mo.disconnect()
     if (pending !== undefined) window.clearTimeout(pending)
@@ -348,6 +392,80 @@ function enableSettingsShortcut(): () => void {
   return () => document.removeEventListener('keydown', onKey, true)
 }
 
+
+/**
+ * dsh：原生窗口按钮透明化（「窗口标题背景跟随左侧边栏」的按钮部分）。
+ *
+ * 官方 preload 往 body append 一个隐藏 span 作**取色探针**，其
+ * `background-color: var(--dsw-specific-sidebar-fill)` 的计算值就是原生窗口按钮的底色。
+ * 本效果把该探针的取值源**重定向**到我们的变量，再由 body 行内值决定按钮颜色：
+ *   probe.background-color = var(--mgs-button-fill, var(--dsw-specific-sidebar-fill))
+ *   body.style            = --mgs-button-fill: rgba(0, 0, 0, 0)  (important)
+ * **完全不修改主题变量** → 侧栏透明度、标题条、工作区渐隐条都不受影响。
+ *
+ * 探针被主题切换重建时，MutationObserver 会重新识别并改写；
+ * 卸载时把探针还原成官方写法、并清掉我们在 body 上写的变量。
+ */
+function enableTitlebarFill(): () => void {
+  const body = document.body
+  const PROBE_HINT = '--dsw-specific-sidebar-fill'
+
+  const findProbe = (): HTMLElement | null => {
+    const spans = Array.from(document.querySelectorAll<HTMLElement>('body > span'))
+    // 实测指纹：内联样式里含 `background-color: var(--dsw-specific-sidebar-fill)`（冒号后有空格）
+    return (
+      spans.find((el) => (el.getAttribute('style') ?? '').includes('background-color: var(' + PROBE_HINT + ')')) ??
+      spans.find((el) => (el.getAttribute('style') ?? '').includes(PROBE_HINT)) ??
+      null
+    )
+  }
+
+  /** 把探针的取色源改指向我们的变量（幂等）。 */
+  const redirectProbe = (): void => {
+    const probe = findProbe()
+    if (probe === null) return
+    if (probe.dataset.mgsProbe === '1') return
+    probe.dataset.mgsProbe = '1' // 排查用标记：document.querySelector('[data-mgs-probe]')
+    probe.style.setProperty(
+      'background-color',
+      'var(' + FILL_BUTTON + ',var(' + PROBE_HINT + '))',
+      'important',
+    )
+  }
+
+  const apply = (): void => {
+    redirectProbe()
+    // 按钮底色 = 透明（rgba(0,0,0,0) 是"计算后"形态，能过主进程那道 #hex / rgb()/rgba() 校验）
+    body.style.setProperty(FILL_BUTTON, 'rgba(0, 0, 0, 0)', 'important')
+  }
+
+  apply()
+  let pending: number | undefined
+  const schedule = (): void => {
+    if (pending !== undefined) return
+    pending = window.setTimeout(() => {
+      pending = undefined
+      apply()
+    }, 80)
+  }
+  const mo = new MutationObserver(schedule)
+  // body 子节点变化 = 探针被（重新）插入；head 变化 = 主题换色；html 属性 = 皮肤切换
+  mo.observe(body, { childList: true })
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'lang'] })
+  mo.observe(document.head, { childList: true, subtree: true, characterData: true })
+
+  return () => {
+    mo.disconnect()
+    if (pending !== undefined) window.clearTimeout(pending)
+    const probe = findProbe()
+    if (probe !== null && probe.dataset.mgsProbe === '1') {
+      probe.style.setProperty('background-color', 'var(' + PROBE_HINT + ')', 'important')
+      delete probe.dataset.mgsProbe
+    }
+    body.style.removeProperty(FILL_BUTTON)
+  }
+}
+
 const JS_EFFECTS: Record<string, (() => () => void) | undefined> = {
   rightbarFullscreenZeroTrack: enableRightbarFullscreenZeroTrack,
   rightbarFullscreenPadding: enableRightbarFullscreenPadding,
@@ -355,6 +473,7 @@ const JS_EFFECTS: Record<string, (() => () => void) | undefined> = {
   rightbarTabOpen: enableRightbarTabOpen,
   rightbarDefaultFullscreen: enableRightbarDefaultFullscreen,
   settingsShortcut: enableSettingsShortcut,
+  titlebarFill: enableTitlebarFill,
 }
 
 /** 当前挂载中的 JS 效果（key → disposer）。 */
@@ -383,7 +502,10 @@ function upsertTag(id: string, css: string): void {
     tag.dataset.mgsOptId = id
     document.head.appendChild(tag)
   }
-  if (tag.textContent !== css) tag.textContent = css
+  // **无条件写入**：`tag.textContent` 读回的是浏览器序列化后的结果（可能已做空白处理），
+  // 用它和原串比较会出现"看着相同、其实内容已过时"的情况 —— 一旦误判就会留下旧规则，
+  // 表现为"改了设置但样式没变"（实测踩过：两个标签内容互相矛盾）。
+  tag.textContent = css
 }
 
 function removeTag(id: string): void {
@@ -448,7 +570,36 @@ export function syncOptimizeEffects(
       let cssText = ''
       if (def.css) cssText += def.css
       if (typeof def.cssValue === 'function') {
-        cssText += def.cssValue(optimizeValue(config, def.id) ?? 0)
+        // `follows`：数值跟随另一项（如桌面标题栏跟随左侧栏透明度）；
+        // 目标项未设置时回退到目标项的默认值，最后兜底本项默认值。
+        let value = optimizeValue(config, def.id)
+        if (def.follows !== undefined) {
+          const followed = optimizeValue(config, def.follows)
+          if (followed !== undefined) value = followed
+          else {
+            const target = OPTIMIZE_DEFS.find((d) => d.id === def.follows)
+            value = target?.defaultValue ?? def.defaultValue
+          }
+        }
+        // ctx：把兄弟项的"值 + 是否启用"从**真实 config**注入（与 follows 同一条通路，不读镜像）
+        const ctxValues = {
+          [CV_UNIFY_ID]: optimizeValue(config, CV_UNIFY_ID),
+          [LB_UNIFY_ID]: optimizeValue(config, LB_UNIFY_ID),
+        }
+        const ctxEnabled = (id: string): boolean => optimizeEnabled(config, id)
+        cssText += def.cssValue(value ?? 0, { values: ctxValues, enabled: ctxEnabled })
+        if (def.id === 'dsh.leftbarBgAlpha' || def.id === 'dsh.leftbarBgUnify') {
+          pushSyncLog({
+            def: def.id,
+            本项值: value,
+            兄弟值: ctxValues,
+            兄弟启用: {
+              [CV_UNIFY_ID]: ctxEnabled(CV_UNIFY_ID),
+              [LB_UNIFY_ID]: ctxEnabled(LB_UNIFY_ID),
+            },
+            生成: cssText,
+          })
+        }
       }
       if (cssText) wanted.set(def.id, cssText)
       if (def.jsEffect && JS_EFFECTS[def.jsEffect]) wantedJs.add(def.jsEffect)

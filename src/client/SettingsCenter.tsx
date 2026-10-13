@@ -26,7 +26,7 @@ import {
   type MemberEntry,
   type SectionEntry,
 } from './pure.ts'
-import { NAV_HUB_ID } from './pure.ts'
+import { NAV_HUB_ID, NATIVE_SECTION_IDS } from './pure.ts'
 import { MEMBER_PAGE_SEAT } from './seats.ts'
 import { MiniSectionContent, type MiniSlots } from './mini.tsx'
 import { useVersions } from './versions.ts'
@@ -193,7 +193,11 @@ function useOpenTarget(
 ): [OpenTarget, (t: OpenTarget) => void] {
   const [open, setOpen] = useState<OpenTarget>(() => {
     const lm = value?.lastMember
-    return lm ? { kind: 'member', id: lm } : null
+    if (lm) return { kind: 'member', id: lm }
+    // 未记录任何上次打开项时，默认停在「通用设置」页（而不是空白内容区）。
+    // 这里只影响默认选中，不写入配置：只有用户真正点开某个成员页时才记 lastMember。
+    const general = (NATIVE_SECTION_IDS as readonly string[]).includes('general') ? 'general' : NATIVE_SECTION_IDS[0]
+    return { kind: 'section', id: general }
   })
   const openTarget = (t: OpenTarget): void => {
     setOpen(t)

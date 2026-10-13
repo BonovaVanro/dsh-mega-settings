@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 家族公共开关字段名（与各成员自身配置里的同名字段同义）。 */
-export const FAMILY_COMPAT_FIELD = 'compatCheck'
+const FAMILY_COMPAT_FIELD = 'compatCheck'
 
 /**
  * 家族公共配置文件路径：`$DSH_HOME/mega.json`（无 DSH_HOME 时 `~/.dsh/mega.json`）。

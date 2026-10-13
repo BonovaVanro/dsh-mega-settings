@@ -18,12 +18,12 @@ import type { SectionEntry } from './pure.ts'
 
 /* runtime slots 数据面（runtime = ctx.slots 公开方法；类型本地收窄，
  * 对齐 @deepseek-ai/dsh-client-ui-slots 的 HostObservable / StandardSourceBinding）。 */
-export interface ObservableSource<T> {
+interface ObservableSource<T> {
   getSnapshot(): T
   subscribe(fn: () => void): () => void
 }
 /** root 标准源绑定（StandardSourceBinding 的本地收窄）。 */
-export interface MiniStandardBinding {
+interface MiniStandardBinding {
   hooks?: Record<string, ObservableSource<unknown>>
   keyedHooks?: Record<string, (key: string) => ObservableSource<unknown> | undefined>
   props?: Record<string, unknown>
@@ -65,7 +65,7 @@ export interface RenderableEntry extends SectionEntry {
 
 /* uSES + selector（镜像官方 observable hook 语义：raw 相同则跳过 selector） */
 const hookCache = new WeakMap<object, unknown>()
-export function observableHookOf<T, R>(
+function observableHookOf<T, R>(
   source: ObservableSource<T>,
 ): (selector: (raw: T) => R, equal?: (a: R, b: R) => boolean) => R {
   let hook = hookCache.get(source as object) as
@@ -110,7 +110,7 @@ const absentSource: ObservableSource<undefined> = {
 /* open-key 标准 hook 家族：use<Name>(key, selector?, equal?)（对齐官方 keyedObservableHook） */
 const keyedHookCache = new WeakMap<object, unknown>()
 const identity = (value: unknown): unknown => value
-export function keyedObservableHookOf(
+function keyedObservableHookOf(
   source: (key: string) => ObservableSource<unknown> | undefined,
 ): (key: string, selector?: (value: unknown) => unknown, equal?: (a: unknown, b: unknown) => boolean) => unknown {
   let hook = keyedHookCache.get(source as object) as
@@ -210,7 +210,7 @@ function localeSeat(
 }
 
 /* 条目错误边界 */
-export class MiniEntryBoundary extends Component<
+class MiniEntryBoundary extends Component<
   { slotKey: string; children: ReactNode },
   { failed: boolean }
 > {
@@ -229,11 +229,11 @@ export class MiniEntryBoundary extends Component<
   }
 }
 /* 渲染一个归一 entry（0.1.2 官方组合序：root 标准 kit + t + store + renderSlot + inject 面 + ownerProps） */
-export interface RenderEntryOptions {
+interface RenderEntryOptions {
   ownerProps?: Record<string, unknown>
   renderChild?: (key: string, owner?: unknown, opts?: { entryKey?: string; only?: string }) => ReactNode
 }
-export function renderMiniEntry(
+function renderMiniEntry(
   slots: MiniSlots,
   slotKey: string,
   entry: RenderableEntry,

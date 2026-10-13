@@ -11,6 +11,7 @@ import type { MegaSettingsConfig, SettingsPathOpView } from '../schema.ts'
 import { MEMBER_META_SEAT, MEMBER_PAGE_SEAT, MEMBER_OPTIMIZE_ID } from './seats.ts'
 import { forwardTranslate, type MiniSlots } from './mini.tsx'
 import { OptimizeCenter } from './OptimizeCenter.tsx'
+import { OPTIMIZE_DEFS, optimizeById } from './optimize.ts'
 import { readOptimizeCache, syncOptimizeEffects } from './optimize-effects.ts'
 import { trace } from './debug.ts'
 import { readVersionsCache, subscribeVersions } from './versions.ts'
@@ -519,7 +520,88 @@ interface DebugSlotsLike {
   spec?(key: string): unknown
 }
 
-export function installDebugProbe(ctx: Context): void {
+/**
+ * 「mega 优化」锚点自检（只读）：把每条优化实际注入的选择器、以及 JS 效果依赖的
+ * aria-label / data-* 锚点，在当前页面上数一遍命中数。
+ *
+ * 用途：dsh 换版（尤其桌面版）后，样式类名/属性可能变化，导致优化"开关有效但没效果"。
+ * 这里能一次判定是「锚点没匹配上」还是「锚点匹配了但被官方样式压过」。
+ */
+function optimizeAnchorReport(): Record<string, unknown> {
+  if (typeof document === 'undefined') return {}
+  const uniq = (xs: string[]): string[] => Array.from(new Set(xs))
+  const count = (sel: string): number | string => {
+    try {
+      return document.querySelectorAll(sel).length
+    } catch (error) {
+      return 'ERR ' + String(error)
+    }
+  }
+  const report: Record<string, unknown> = {}
+  for (const def of OPTIMIZE_DEFS) {
+    let text = def.css ?? ''
+    if (typeof def.cssValue === 'function') {
+      // 用该项的默认值（选项组取首项）算出与运行时等价的选择器
+      const raw = def.defaultValue ?? (def.choices !== undefined && def.choices.length > 0 ? 0 : 0)
+      // 诊断自检：ctx 按"兄弟项用默认值"给出，够用来还原选择器（不影响真实运行）
+      text += def.cssValue(raw, {
+        values: {},
+        enabled: (id: string) => optimizeById(id)?.defaultOn === true,
+      })
+    }
+    const selectors = uniq(
+      (text.match(/[^{}]+\{/g) ?? [])
+        .map((s) => s.slice(0, -1).trim())
+        .filter((s) => s.length > 0 && !s.startsWith('@')),
+    )
+    const entry: Record<string, unknown> = {}
+    if (selectors.length > 0) {
+      entry['选择器'] = selectors.map((s) => ({ 选择器: s, 命中: count(s) }))
+    }
+    if (def.jsEffect !== undefined) {
+      entry['JS 效果'] = def.jsEffect
+      const anchors: Record<string, string> =
+        def.jsEffect === 'settingsShortcut'
+          ? { '壳触发器': '.triggerRow .trigger' }
+          : def.jsEffect === 'rightbarFullscreenEscapeClose'
+            ? { '收起右侧边栏按钮': '[aria-label="收起右侧边栏"]', 'Collapse right sidebar': '[aria-label="Collapse right sidebar"]', '全屏帧': '[data-rightbar-fullscreen]' }
+            : def.jsEffect === 'rightbarTabOpen'
+              ? { '打开右侧边栏按钮': '[aria-label="打开右侧边栏"]', 'Open right sidebar': '[aria-label="Open right sidebar"]', '已打开标记': '[data-sidebar-right-open]' }
+              : def.jsEffect === 'rightbarDefaultFullscreen'
+                ? { '全屏按钮': '[data-sidebar-right-panel] [aria-label="全屏"]', Fullscreen: '[data-sidebar-right-panel] [aria-label="Fullscreen"]' }
+                : def.jsEffect === 'rightbarFullscreenZeroTrack'
+                  ? { '全屏帧': '[data-rightbar-fullscreen]' }
+                  : def.jsEffect === 'rightbarFullscreenPadding'
+                    ? { '右侧栏面板': '[data-sidebar-right-panel]' }
+                    : {}
+      entry['锚点'] = Object.fromEntries(Object.entries(anchors).map(([k, sel]) => [k, { 选择器: sel, 命中: count(sel) }]))
+    }
+    if (Object.keys(entry).length > 0) report[def.id] = entry
+  }
+  return report
+}
+
+/** 候选选择器实测：对「仍可能依赖 hash / 类名」的锚点，列出候选与当前页面命中数。
+ *  用于换版（尤其桌面版）后决定改用哪个锚点——0 = 该写法在当前构建里不存在。 */
+const ANCHOR_CANDIDATES: Record<string, string[]> = {
+  '对话头工具区（全屏时隐藏）': ['[data-rightbar-fullscreen] [class*="_headerUtilities"]', '[class*="_headerUtilities"]'],
+  '正文文件预览卡背景': [
+    '[class*="_preview_178vx_"]',
+    '[class*="_preview"]',
+    '[class*="_card"][class*="_preview"]',
+  ],
+  'Markdown 表格限宽': ['.md-table-wide', '[class*="_tableScroll"] .md-table-wide'],
+  '右侧栏全屏面板': ['[data-sidebar-right-panel="fullscreen"]'],
+  'dock 内容区': ['[data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] > section'],
+  '技能中心根（第三方 hash）': ['[class*="_overlay"]', '[class*="_overlay"] [class*="_card"]'],
+  'cost-meter 标记（第三方）': ['.cm-peak-marker', '.cm-peak-classic-marker', '.cm-footer-stack'],
+  'better-sidebar 切换钮（第三方）': ['[data-dsh-bottom-toggle]'],
+  '壳触发器（Ctrl+Shift+S）': ['.triggerRow .trigger', '[class*="_triggerRow"] .trigger', '[class*="_triggerRow"] [class*="_trigger"]'],
+  '悬停卡（主题适配）': ['[role="button"][aria-label^="复制:"]', '[role="button"][aria-label^="Copy:"]'],
+  '左栏折叠标记': ['[data-sidebar-collapsed]', '[class*="_collapsed"]'],
+}
+
+function installDebugProbe(ctx: Context): void {
   if (typeof window === 'undefined') return
   const slots = ctx.slots as unknown as DebugSlotsLike
   const read = (key: string): { id: string; order: number }[] => {
@@ -533,7 +615,7 @@ export function installDebugProbe(ctx: Context): void {
     }
   }
   ;(window as unknown as { __MGS_DEBUG__?: () => unknown }).__MGS_DEBUG__ = () => ({
-    版本: 'debug-probe-1',
+    版本: 'debug-probe-2',
     槽位: {
       'sidebar.settings': read('sidebar.settings'),
       'settings.section': read('settings.section'),
@@ -544,5 +626,23 @@ export function installDebugProbe(ctx: Context): void {
       'settings.launcher': slots.spec?.('settings.launcher') !== undefined,
     },
     原生清单: NATIVE_SECTION_IDS,
+    注入的优化样式标签: typeof document === 'undefined' ? [] : Array.from(document.querySelectorAll('style[data-mgs-opt-id]')).map((el) => (el as HTMLElement).dataset.mgsOptId ?? ''),
+    优化锚点自检: optimizeAnchorReport(),
+    候选选择器实测: typeof document === 'undefined'
+      ? {}
+      : Object.fromEntries(
+          Object.entries(ANCHOR_CANDIDATES).map(([name, sels]) => [
+            name,
+            sels.map((s) => {
+              let hits: number | string
+              try {
+                hits = document.querySelectorAll(s).length
+              } catch (error) {
+                hits = 'ERR ' + String(error)
+              }
+              return { 选择器: s, 命中: hits }
+            }),
+          ]),
+        ),
   })
 }

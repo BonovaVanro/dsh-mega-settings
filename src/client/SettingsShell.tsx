@@ -21,7 +21,6 @@ import {
   NATIVE_SECTION_IDS,
   NAV_HUB_ID,
   UNGROUPED_GID,
-  dropFinalIndex,
   expandUngroupedOrder,
   groupOf,
   memberId,
@@ -978,10 +977,22 @@ export function SettingsShell(props: ShellProps) {
   // 折叠体列出全部自定义组（含空组：标题行可新建后命名/被拖入）；mega/未分组仍按需派生
   const hasFoldContent = memberIds.length > 0 || groups.length > 0 || ungroupedVisible.length > 0
 
+  /** 打开弹层且尚未选中任何页时的默认页：**「通用设置」**优先。
+   *  只挑当前导航里**真实可见**的分区（topDisplayRows，含已纳管进 navOrder 的原生行）——
+   *  否则会指向一个没有行的分区，内容区反而空白。
+   *  没有任何可用分区时才退回 mega 设置中心。 */
+  const defaultNavTarget = (): NavTarget => {
+    const has = (id: string): boolean => topDisplayRows.some((r) => r.id === id)
+    if (has('general')) return { kind: 'section', id: 'general' }
+    const first = topDisplayRows[0]
+    if (first !== undefined) return { kind: 'section', id: first.id }
+    return { kind: 'mega' }
+  }
+
   useEffect(() => {
-    if (open && target === null) {
-      setTarget(mode === 'fold' ? { kind: 'section', id: NATIVE_SECTION_IDS[0] } : { kind: 'mega' })
-    }
+    if (open && target === null) setTarget(defaultNavTarget())
+    // defaultNavTarget 依赖 topDisplayRows（每次渲染重新计算），此处只需在"打开且未选中"时落一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, target, mode])
   useEffect(() => {
     if (!open) return

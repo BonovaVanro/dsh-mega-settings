@@ -68,7 +68,7 @@ export const NATIVE_SECTION_IDS = [
 export const HOST_SECTION_ID = 'mega-settings'
 
 /** 组名保留字（大小写不敏感比较）：未分组（动态派生）与 mega（固组）。 */
-export const RESERVED_GROUP_NAMES = ['未分组', 'mega'] as const
+const RESERVED_GROUP_NAMES = ['未分组', 'mega'] as const
 
 /** 自定义分组（落盘形态）。 */
 export interface GroupDef {
@@ -135,7 +135,7 @@ export function ungroupedIds(managedIds: readonly string[], groups: readonly Gro
   return managedIds.filter((id) => !covered.has(id))
 }
 
-export type GroupNameError = 'empty' | 'duplicate' | 'reserved'
+type GroupNameError = 'empty' | 'duplicate' | 'reserved'
 
 /** 组名校验：非空、组内不重名、非保留名（未分组 / mega，大小写不敏感）。 */
 export function validateGroupName(name: string, groups: readonly GroupDef[]): GroupNameError | null {
