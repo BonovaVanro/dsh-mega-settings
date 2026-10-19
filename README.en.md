@@ -13,7 +13,7 @@ A **unified settings hub** for DSH (DeepSeek Harness): gather scattered plugin s
 - **Native look**: only dsh semantic tokens and official visuals, no theme branches;
 - **Settings shell aligned with the official one**: title / trigger / action row (e.g. "open settings document") / close button / first-run onboarding all render the official slot entries, and a broken connection can be reconnected in place; the nav has a search box;
 - **Settings-page switches**: the compatibility self-check (mega family contract) and the nav search box can be turned on or off, and unread tips are dismissed with one click;
-- **mega Optimize**: a hub of optimization toggles for dsh and third-party plugins — rightbar fullscreen zero track / fullscreen background transparency (slider; larger = more transparent) / hide the conversation toolbar in fullscreen / left sidebar footer actions layout / `Ctrl+Shift+S` to open settings; third-party entries get one panel per plugin (dsh-better-sidebar, dsh-cost-meter, skill explorer) and are hidden (and not injected) when the plugin is not installed or not enabled; adding an optimization is just appending a registry def;
+- **mega Optimize**: a hub of optimization toggles for dsh and third-party plugins — rightbar fullscreen zero track / fullscreen background transparency (slider; larger = more transparent) / hide the conversation toolbar in fullscreen / left sidebar footer actions layout / `Ctrl+Shift+S` to open settings; third-party entries get one panel per plugin (dsh-better-sidebar, dsh-cost-meter) and are hidden (and not injected) when the plugin is not installed or not enabled; adding an optimization is just appending a registry def;
 - **Version self-check**: on host startup verifies the current dsh version line and warns in the console when unsupported (never blocks loading).
 
 ## mega Optimize
@@ -58,7 +58,7 @@ Grouped into four sub-sections: **Desktop app** (desktop shell only) → **Conte
 
 Each plugin gets its own panel (plugin name + version in the header); **plugins that are not installed or not enabled are hidden and their effects are not injected**. Currently:
 
-- **dsh-better-sidebar**: hide the bottom-panel toggle;
+- **dsh-better-sidebar**: hide the bottom-panel button; hide the context diagnostics button (requires better-sidebar 0.26+ with dsh-context installed);
 - **dsh-cost-meter**: peak/valley pricing theme adaptation (weekend and peak markers/labels follow the theme; the peak-hour color is selectable: warning / danger / error); the bottom cost bar also gained **background transparency** and **remove border**.
 
 > The Skill explorer (`@linxin666/dsh-client-ui-skill-explorer`) theme adaptation has been **removed**: that plugin now handles theme/skin adaptation itself, so this plugin no longer overrides its styles.

@@ -91,8 +91,15 @@ const PLUGIN_URLS: Record<string, string> = {
 /** 插件组 CSS（只引用各插件自身的稳定标记） */
 const CSS = {
   betterSidebarHideBottomToggle: [
-    // dsh-better-sidebar 底部面板的展开/收起切换钮
+    // dsh-better-sidebar 底部面板的展开/收起按钮
     '[data-dsh-bottom-toggle]{display:none!important}',
+  ].join(''),
+  betterSidebarHideContextDiagnostics: [
+    // dsh-better-sidebar 的可选「上下文诊断」入口（dsh-context 提供时出现）：
+    //   常量 DIAGNOSTICS_ENTRY_ATTR = "data-dsh-ctx-entry"（入口控件缺失时该属性不出现）；
+    //   另有 frame 级告警 "data-dsh-ctx-alert"，本项不动它。
+    //   仅在 better-sidebar ≥0.26 存在（更早版本没有该入口，规则自然空转）。
+    '[data-dsh-ctx-entry]{display:none!important}',
   ].join(''),
   costMeterPeakValley: [
     // 峰谷计价：周末标记/标签 → business 语义色
@@ -536,6 +543,15 @@ const ALL_OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     nameKey: 'opt.plugin.betterSidebar.hideBottomToggle',
     descKey: 'opt.plugin.betterSidebar.hideBottomToggle.desc',
     css: CSS.betterSidebarHideBottomToggle,
+  },
+  {
+    id: 'betterSidebar.hideContextDiagnostics',
+    group: 'plugin',
+    target: 'dsh-better-sidebar',
+    sectionId: 'better-sidebar',
+    nameKey: 'opt.plugin.betterSidebar.hideContextDiagnostics',
+    descKey: 'opt.plugin.betterSidebar.hideContextDiagnostics.desc',
+    css: CSS.betterSidebarHideContextDiagnostics,
   },
   {
     id: 'costMeter.peakValleyTheme',

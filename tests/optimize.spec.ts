@@ -476,10 +476,26 @@ describe('optimize: 按插件分组（每插件一个面板）', () => {
     }
   })
 
-  it('dsh-better-sidebar 面板只剩底部面板切换钮', () => {
+  it('dsh-better-sidebar 面板：隐藏底部面板按钮 + 隐藏上下文诊断按钮', () => {
     const g = optimizePluginGroups().find((x) => x.plugin === 'dsh-better-sidebar')
     expect(g).toBeDefined()
-    expect(g!.defs.map((d) => d.id)).toEqual(['betterSidebar.hideBottomToggle'])
+    expect(g!.defs.map((d) => d.id)).toEqual([
+      'betterSidebar.hideBottomToggle',
+      'betterSidebar.hideContextDiagnostics',
+    ])
+    // 底部面板按钮：沿用插件自带的稳定标记
+    const bottom = optimizeById('betterSidebar.hideBottomToggle')!
+    expect(bottom.css).toBe('[data-dsh-bottom-toggle]{display:none!important}')
+    // 上下文诊断入口：better-sidebar 的 DIAGNOSTICS_ENTRY_ATTR（frame 级告警 data-dsh-ctx-alert 不动）
+    const ctx = optimizeById('betterSidebar.hideContextDiagnostics')!
+    expect(ctx.target).toBe('dsh-better-sidebar')
+    expect(ctx.sectionId).toBe('better-sidebar')
+    expect(ctx.css).toBe('[data-dsh-ctx-entry]{display:none!important}')
+    expect(ctx.css).not.toContain('data-dsh-ctx-alert')
+    // 两项都不得依赖 hash 类
+    for (const css of [bottom.css, ctx.css]) {
+      for (const hash of ['pI_x6G', 'hHd-Xa', 'BynINW', '_2H3hWW']) expect(css).not.toContain(hash)
+    }
   })
 
   it('dsh-cost-meter 峰谷计价主题色适配：周末/经典标记 + 可配置峰值时段颜色', () => {

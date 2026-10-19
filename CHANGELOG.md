@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-rc.2-update.2（dsh-better-sidebar：新增「隐藏上下文诊断按钮」）
+
+[中文](#cn-v0.2.0-rc.2-update.2) | [English](#en-v0.2.0-rc.2-update.2)
+
+<h3 id="cn-v0.2.0-rc.2-update.2">适配与变更</h3>
+
+- **dsh-better-sidebar 新增「隐藏上下文诊断按钮」**：对应插件里可选的「上下文诊断」入口（`contextDiagnostics: '上下文诊断'`），稳定标记为 `data-dsh-ctx-entry`（插件自带的 `DIAGNOSTICS_ENTRY_ATTR`，入口不可用时该属性不出现）→ `[data-dsh-ctx-entry]{display:none!important}`。frame 级诊断告警（`data-dsh-ctx-alert`）不受影响。仅在 better-sidebar ≥0.26 存在该入口（更早版本规则自然空转）。
+- **「隐藏底部面板切换钮」改名为「隐藏底部面板按钮」**（行为不变，仍是 `[data-dsh-bottom-toggle]`）。
+
+<h3 id="en-v0.2.0-rc.2-update.2">Adaptation &amp; changes</h3>
+
+- **New "Hide context diagnostics button" for dsh-better-sidebar**: targets the optional "Context diagnostics" entry (`contextDiagnostics`), whose stable marker is `data-dsh-ctx-entry` (the plugin's own `DIAGNOSTICS_ENTRY_ATTR`; absent when the entry is not offered) → `[data-dsh-ctx-entry]{display:none!important}`. The frame-wide diagnostics alert (`data-dsh-ctx-alert`) is unaffected. The entry only exists in better-sidebar ≥0.26, so on older versions the rule is simply inert.
+- **Renamed "Hide bottom-panel toggle" to "Hide bottom-panel button"** (behaviour unchanged; still `[data-dsh-bottom-toggle]`).
+
 ## 0.2.0-rc.2-update.1（桌面版适配补全 · 「正文」分区 · 原生窗口按钮）
 
 [中文](#cn-v0.2.0-rc.2-update.1) | [English](#en-v0.2.0-rc.2-update.1)
