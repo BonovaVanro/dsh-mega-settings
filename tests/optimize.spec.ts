@@ -82,7 +82,7 @@ describe('optimize: 注册表完整性', () => {
   it('正文背景透明度：按统一化状态决定作用范围（开=只选中层 / 关=两层都生效）', () => {
     const alpha = optimizeById('dsh.conversationBgAlpha')!
     const innerSel = '[data-slot="main.conversation"] > [class*="_root"]'
-    const colSel = '[data-dsh-surface="conversation"]'
+    const colSel = '[class*="_centerCol"],[data-dsh-surface="conversation"]'
     const inner = '{background:color-mix(in srgb, var(--dsw-alias-bg-base,rgb(27,27,28)) 75%, transparent)!important}'
     const UNIFY = 'dsh.conversationBgUnify'
     // ctx 由同步层注入（真实 config），用例直接构造
@@ -113,7 +113,7 @@ describe('optimize: 注册表完整性', () => {
     const innerSel = '[data-slot="main.conversation"] > [class*="_root"]'
     // 保留中心列（下标 0）→ 清会话根；保留会话根（下标 1）→ 清中心列
     expect(unify!.cssValue!(0)).toBe(innerSel + '{background:none!important}')
-    expect(unify!.cssValue!(1)).toBe('[data-dsh-surface="conversation"]{background:none!important}')
+    expect(unify!.cssValue!(1)).toBe('[class*="_centerCol"],[data-dsh-surface="conversation"]{background:none!important}')
     // ② 背景透明度：对**统一化选中的那一层**混色（读配置决定目标）
     const alpha = optimizeById('dsh.conversationBgAlpha')
     expect(alpha).toBeDefined()
@@ -121,7 +121,7 @@ describe('optimize: 注册表完整性', () => {
     expect(alpha!.defaultValue).toBe(25)
     const alphaCtx = { values: {}, enabled: () => false } // 统一化未开启 → 两层都生效
     const alphaCss = alpha!.cssValue!(25, alphaCtx)
-    expect(alphaCss).toMatch(/^\[data-dsh-surface="conversation"\]/)
+    expect(alphaCss).toMatch(/^\[class\*="_centerCol"\],\[data-dsh-surface="conversation"\]/)
     expect(alphaCss).toContain(
       '{background:color-mix(in srgb, var(--dsw-alias-bg-base,rgb(27,27,28)) 75%, transparent)!important}',
     )
@@ -386,6 +386,32 @@ describe('optimize: 注册表完整性', () => {
       const withoutScoped = text.split('[data-slot="sidebar"] > [class*="_root"]').join('')
       expect(withoutScoped, id).not.toMatch(/\[class\*="_root"\]/)
     }
+  })
+
+  it('正文两项（中心列 / 文件预览卡）不得依赖 CSS-module hash，也不得依赖第三方插件打的数据属性', () => {
+    // ① 中心列：自身锚点 `_centerCol`（布局包唯一），`data-dsh-surface` 只作兜底 ——
+    //    该属性是 skin-center 插件写的语义标注，不是官方结构，不能当唯一依据。
+    const unify = optimizeById('dsh.conversationBgUnify')!
+    const alpha = optimizeById('dsh.conversationBgAlpha')!
+    const ctx = { values: {}, enabled: () => false }
+    // 只有「保留中心列」语义的规则才需要中心列锚点（保留会话根那条只清会话根）
+    for (const css of [unify.cssValue!(1), alpha.cssValue!(25, ctx)]) {
+      const own = css.indexOf('[class*="_centerCol"]')
+      const fallback = css.indexOf('[data-dsh-surface="conversation"]')
+      expect(own).toBeGreaterThan(-1)
+      // 兜底属性可以同时出现，但自身锚点必须在前（顺序即优先级语义）
+      if (fallback !== -1) expect(own).toBeLessThan(fallback)
+    }
+    // ② 文件预览卡：类名后缀 `_preview` + 行内预览淡出变量求交；不得写死任何 `_preview_<hash>_<行号>`
+    const preview = optimizeById('dsh.filePreviewBgAlpha')!
+    const css = preview.cssValue!(25)
+    expect(css.startsWith('[class*="_preview"][style*="--dsh-hover-preview-fade"]{')).toBe(true)
+    expect(css).not.toMatch(/_preview_[A-Za-z0-9]+_\d/)
+    for (const stale of ['_preview_178vx_', '_preview_1nod8_', '_preview_bgejw_', '_preview_38jqx_']) {
+      expect(css).not.toContain(stale)
+    }
+    // 只有 `[style*=…]` 会连带改掉 compact 形态的会话悬停卡，必须与 `_preview` 求交
+    expect(css.startsWith('[style*="--dsh-hover-preview-fade"]')).toBe(false)
   })
 
   it('dsh 全屏下内边距优化 def：jsEffect 生效', () => {

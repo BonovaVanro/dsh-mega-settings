@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0-rc.2-update.3（适配 dsh 0.2.2-rc.1：正文中心列与文件预览卡锚点）
+
+[中文](#cn-v0.2.0-rc.2-update.3) | [English](#en-v0.2.0-rc.2-update.3)
+
+<h3 id="cn-v0.2.0-rc.2-update.3">适配与变更</h3>
+
+- **适配 dsh 0.2.2-rc.1（web 端同步更新，桌面壳 0.2.1-rc.5 同一份包继续可用）**：
+  - **正文「背景颜色统一化 / 背景透明度」恢复生效**：中心列的锚点从 `[data-dsh-surface="conversation"]` 改为布局包自身的 `[class*="_centerCol"]`。前者是 **skin-center 插件**给 DOM 打的语义标注、**不是**官方结构（官方 `client-ui-layout` / `ui-conversation` 从不输出该属性），0.2.2 实测命中 0，导致「保留中心列」那一支静默失效。新锚点是 CSS-module 类名后缀（hash 前缀不进选择器），web 与桌面两端都唯一命中；旧属性保留为兜底，装了皮肤中心的老版本仍可命中。
+  - **「文件预览背景透明度」不再写死 CSS-module hash**：原选择器 `._preview_178vx_56` 只在特定构建里成立（0.1.7-alpha.1 `_preview_1nod8_56`、0.2.0-rc.1 `_preview_178vx_56`、0.2.2-rc.1 `_preview_bgejw_52`、桌面 0.2.1 `_preview_38jqx_52`），换版即失配。改为两条跨构建稳定锚点**求交**：类名后缀 `[class*="_preview"]`（hash 前缀不进选择器）+ 行内预览淡出变量 `[style*="--dsh-hover-preview-fade"]`（web 壳与桌面壳的 HoverCard 组件都写）。必须求交 —— 只用行内变量会连带改掉 compact 形态的会话悬停卡。
+- **诊断探针升级 `debug-probe-3`**：候选锚点表新增「正文中心列」一项，文件预览卡的候选改为新锚点（`_preview` 后缀 / 行内变量 / 二者求交），换版后可在控制台一行自检。
+
+<h3 id="en-v0.2.0-rc.2-update.3">Adaptation &amp; changes</h3>
+
+- **Adapted to dsh 0.2.2-rc.1 (web runtime updated; the same package still serves the 0.2.1-rc.5 desktop shell)**:
+  - **"Content background unify / transparency" works again**: the center column is now anchored on the layout package's own `[class*="_centerCol"]` instead of `[data-dsh-surface="conversation"]`. The latter is a semantic annotation written by the **skin-center plugin**, not official structure (neither `client-ui-layout` nor `ui-conversation` ever emits it); on 0.2.2 it matched 0 elements, silently killing the "keep center column" branch. The new anchor is a CSS-module class suffix (the hash prefix stays out of the selector) and is unique on both web and desktop; the old attribute is kept as a fallback so versions with skin-center still match.
+  - **"File preview background transparency" no longer hardcodes a CSS-module hash**: the old `._preview_178vx_56` only existed in one build (0.1.7-alpha.1 `_preview_1nod8_56`, 0.2.0-rc.1 `_preview_178vx_56`, 0.2.2-rc.1 `_preview_bgejw_52`, desktop 0.2.1 `_preview_38jqx_52`). It now intersects two build-stable anchors: the class suffix `[class*="_preview"]` plus the inline preview fade variable `[style*="--dsh-hover-preview-fade"]` (written by the HoverCard component in both the web shell and the desktop shell). The intersection matters — the inline variable alone would also restyle the compact session hover card.
+- **Diagnostics probe bumped to `debug-probe-3`**: the candidate-anchor table gains "content center column" and the new file-preview anchors, so a future build bump can be checked from one console call.
+
 ## 0.2.0-rc.2-update.2（dsh-better-sidebar：新增「隐藏上下文诊断按钮」）
 
 [中文](#cn-v0.2.0-rc.2-update.2) | [English](#en-v0.2.0-rc.2-update.2)

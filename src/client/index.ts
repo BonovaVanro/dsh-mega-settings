@@ -585,12 +585,13 @@ function optimizeAnchorReport(): Record<string, unknown> {
  *  用于换版（尤其桌面版）后决定改用哪个锚点——0 = 该写法在当前构建里不存在。 */
 const ANCHOR_CANDIDATES: Record<string, string[]> = {
   '对话头工具区（全屏时隐藏）': ['[data-rightbar-fullscreen] [class*="_headerUtilities"]', '[class*="_headerUtilities"]'],
+  '正文中心列': ['[class*="_centerCol"]', '[data-dsh-surface="conversation"]'],
   '正文文件预览卡背景': [
-    '[class*="_preview_178vx_"]',
+    '[class*="_preview"][style*="--dsh-hover-preview-fade"]',
     '[class*="_preview"]',
-    '[class*="_card"][class*="_preview"]',
+    '[style*="--dsh-hover-preview-fade"]',
   ],
-  'Markdown 表格限宽': ['.md-table-wide', '[class*="_tableScroll"] .md-table-wide'],
+  'Markdown 表格限宽': ['.md-table-wide', '[class*="_tableScroll"] .md-table-wide', '[class*="_tableScroll"]'],
   '右侧栏全屏面板': ['[data-sidebar-right-panel="fullscreen"]'],
   'dock 内容区': ['[data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] > section'],
   '技能中心根（第三方 hash）': ['[class*="_overlay"]', '[class*="_overlay"] [class*="_card"]'],
@@ -615,7 +616,7 @@ function installDebugProbe(ctx: Context): void {
     }
   }
   ;(window as unknown as { __MGS_DEBUG__?: () => unknown }).__MGS_DEBUG__ = () => ({
-    版本: 'debug-probe-2',
+    版本: 'debug-probe-3',
     槽位: {
       'sidebar.settings': read('sidebar.settings'),
       'settings.section': read('settings.section'),

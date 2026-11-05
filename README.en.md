@@ -163,7 +163,7 @@ After installing, you can confirm which build is running from the page console: 
 
 ## Supported dsh versions & compatibility
 
-- **Adapted to dsh version: `>= 0.2.0-rc.1`** (this build takes 0.2.0-rc.1 as its floor; 0.2.0-rc.2 / the 0.2.0 release / 0.3.0 and newer are all compatible);
+- **Adapted to dsh version: `>= 0.2.0-rc.1`** (this build takes 0.2.0-rc.1 as its floor; verified on dsh **0.2.2-rc.1** (web) and the **0.2.1-rc.5** desktop shell; 0.2.0-rc.2 / 0.3.0 and newer stay in range);
 - Older lines (dsh 0.1.1 / 0.1.2 / 0.1.5-rc.\* / 0.1.7-rc.\* / 0.2.0-alpha) should use the corresponding branch release;
 - On startup the host self-checks the version policy (default `>= 0.2.0-rc.1`); a mismatch makes the console print
   `dsh-mega-settings may not be compatible with dsh <version> — use with caution`, and the plugin still loads;

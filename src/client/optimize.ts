@@ -172,8 +172,12 @@ export const FILL_BUTTON = '--mgs-button-fill'
  *  填充色真在 frame 上的平台；web 无此属性则该规则天然不生效，改由 LB_LAYOUT 承担。 */
 const TITLEBAR_CTX = '[data-windows-titlebar] '
 
-/** 正文中心列：官方打有 data-dsh-surface="conversation"，与 hash 无关的稳定锚点。 */
-const CV_CENTER_COL = '[data-dsh-surface="conversation"]'
+/** 正文中心列：布局包的中心列（CSS-module 类后缀 `_centerCol` 跨构建/跨平台稳定，
+ *  web 与桌面都只有布局层这一处；hash 前缀不进选择器）。
+ *  注：**不要**用 `[data-dsh-surface="conversation"]` —— 那是 skin-center 插件给 DOM 打的语义标注，
+ *  不是官方结构；官方 client-ui-layout / ui-conversation 从不输出该属性，皮肤中心停用或换版后
+ *  整条规则会静默失配（0.2.2 实测命中 0）。旧属性保留为兜底，装了皮肤中心的老版本仍可命中。 */
+const CV_CENTER_COL = '[class*="_centerCol"],[data-dsh-surface="conversation"]'
 /** 中心列内部、会话自身那一层：`main.conversation` 槽的直接子模块根（官方 main 槽挂 main.conversation）。
  *  选择器保持简短，只用稳定的 `data-slot` + 后缀类，不写完整层级路径。 */
 const CV_INNER_ROOT = '[data-slot="main.conversation"] > [class*="_root"]'
@@ -338,11 +342,15 @@ const ALL_OPTIMIZE_DEFS: readonly OptimizeDef[] = [
     // 透明度语义：数值越大越透明（0 = 完全不透明，100 = 全透明）；默认 25 → alpha 75%
     defaultValue: 25,
     // 正文编辑「文件预览」卡片背景混合为主题 layer-1 半透明。
-    // _preview_178vx_56 为 web shell（dsh-web-frontend）CSS-module hash（同组 card=_card_178vx_13 / copyable / status
-    // 的预览态类；无 data-* 稳定面），随 shell 构建可能变化（0.1.7-alpha.1 为 _preview_1nod8_56，rc.1 改 178vx），
-    // 升级后需复核（同 rightbarFullscreenHideHeaderUtilities）。
+    // 该卡片由 web 壳的 HoverCard 组件渲染（dsh-web-frontend / 桌面壳同源），**没有**稳定 data-* 面；
+    // 它的类名是 CSS-module `_preview_<hash>_<行号>`（0.1.7-alpha.1 `_preview_1nod8_56`、
+    // 0.2.0-rc.1 `_preview_178vx_56`、0.2.2-rc.1 `_preview_bgejw_52`、桌面 0.2.1 `_preview_38jqx_52`），
+    // 写死 hash 必失配。改用两条**跨构建稳定**的锚点求交：
+    //   ① 类名后缀 `_preview`（前缀 hash 不进选择器）；
+    //   ② 行内样式里的预览淡出变量 `--dsh-hover-preview-fade`（组件对**每张**悬停卡都写，
+    //      故必须与 ① 求交，避免连带改掉会话悬停卡（compact 形态））。
     cssValue: (v) =>
-      '._preview_178vx_56{background:rgb(from var(--dsw-alias-bg-layer-1) r g b / ' +
+      '[class*="_preview"][style*="--dsh-hover-preview-fade"]{background:rgb(from var(--dsw-alias-bg-layer-1) r g b / ' +
       (100 - Math.max(0, Math.min(100, Math.round(v)))) / 100 +
       ')}',
   },
